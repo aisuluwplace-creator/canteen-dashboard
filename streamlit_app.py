@@ -395,11 +395,11 @@ def render_survey(cfg: SurveyConfig):
     delta_pct = round((n_cur - n_cmp) / n_cmp * 100, 1) if n_cmp else None
 
     kpi_row([
-        ("Анкет всего в файле", n_total, "", "", "за всю историю сбора"),
-        ("Текущий период", n_cur, "", "", ", ".join(cur_sel) or "период не выбран"),
-        ("Период сравнения", n_cmp, "", "compare", ", ".join(cmp_sel) or "период не выбран"),
-        ("Изменение отклика", (f"{'+' if delta_pct and delta_pct > 0 else ''}{delta_pct}" if delta_pct is not None else "—"),
-         "%" if delta_pct is not None else "", "good" if (delta_pct or 0) >= 0 else "flag", "кол-во анкет, тек. vs сравнение"),
+        ("Анкет собрано всего", n_total, "", "", "за всё время сбора данных"),
+        ("Анкет за текущий период", n_cur, "", "", ", ".join(cur_sel) or "период не выбран"),
+        ("Анкет за период сравнения", n_cmp, "", "compare", ", ".join(cmp_sel) or "период не выбран"),
+        ("Изменение числа анкет", (f"{'+' if delta_pct and delta_pct > 0 else ''}{delta_pct}" if delta_pct is not None else "—"),
+         "%" if delta_pct is not None else "", "good" if (delta_pct or 0) >= 0 else "flag", "текущий период к периоду сравнения"),
     ])
 
     st.markdown(
@@ -428,7 +428,7 @@ def render_survey(cfg: SurveyConfig):
         st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
 
     st.write("")
-    section_head("Ответы по вопросам", "Текущий период (навy) в сравнении с выбранным периодом сравнения (голубой)")
+    section_head("Ответы по вопросам", "Тёмно-синий столбец — текущий период, голубой — период сравнения. По вертикали — доля ответивших, в процентах")
     q_cols = st.columns(2)
     for i, q in enumerate(cfg.questions):
         col_name = cols[q.col]
@@ -451,7 +451,7 @@ def render_survey(cfg: SurveyConfig):
                 st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
                 cur_n = len(pd.to_numeric(df_cur[col_name], errors="coerce").dropna()) if q.kind == "numeric15" else df_cur[col_name].apply(q.normalize).dropna().shape[0]
                 cmp_n = len(pd.to_numeric(df_cmp[col_name], errors="coerce").dropna()) if q.kind == "numeric15" else df_cmp[col_name].apply(q.normalize).dropna().shape[0]
-                st.caption(f"n тек. = {cur_n} · n сравн. = {cmp_n}")
+                st.caption(f"На этот вопрос ответили: {cur_n} чел. за текущий период, {cmp_n} чел. за период сравнения")
 
     st.write("")
     section_head("Комментарии сотрудников", "Пустые и малоинформативные ответы исключены; тональность определена по ключевым словам (эвристика)")
@@ -475,7 +475,8 @@ def render_survey(cfg: SurveyConfig):
     col_s1, col_s2 = st.columns([1, 1.4])
     with col_s1:
         with st.container(border=True):
-            st.markdown(f"**Тональность комментариев** &nbsp;·&nbsp; тек. n={len(all_comments_cur)}, сравн. n={len(all_comments_cmp)}")
+            st.markdown(f"**Тональность комментариев**")
+            st.caption(f"Комментариев с текстом: {len(all_comments_cur)} за текущий период, {len(all_comments_cmp)} за период сравнения")
             fig = render_grouped_bar(["Позитив", "Нейтрально", "Негатив"],
                                       [cur_sent["pos"], cur_sent["neu"], cur_sent["neg"]],
                                       [cmp_sent["pos"], cmp_sent["neu"], cmp_sent["neg"]],

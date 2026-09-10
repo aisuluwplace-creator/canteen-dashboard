@@ -1,30 +1,30 @@
+import glob
 import re
 import textwrap
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-DATA_FILE = "Столовая - Асхана - Canteen(1-654).xlsx"
+BASE_DIR = Path(__file__).parent
 
-st.set_page_config(page_title="Пульс столовой · Асхана", page_icon="🍲", layout="wide")
+st.set_page_config(page_title="Опросы удовлетворённости", page_icon="📊", layout="wide")
 
 # ---------------------------------------------------------------- palette --
-# Light corporate ground with the navy / medium-blue pair from the TAV Almaty (ALA)
-# Power BI house style — same two-tone family as the airport's own dashboards.
 BG, SURFACE, BORDER = "#eef1f6", "#ffffff", "rgba(20,27,46,0.10)"
 INK, INK_2, INK_MUTED = "#141b2e", "#4a5573", "#8891a8"
 NAVY, NAVY_DEEP, SKY = "#1b2a63", "#101a42", "#5f86dd"
 
-POS_5, POS_4 = "#1b2a63", "#8facea"
-NEU_3 = "#d7dbe4"
-NEG_2, NEG_1 = "#f3b7ab", "#d9503d"
+CURRENT_COLOR, COMPARE_COLOR = "#1b2a63", "#8facea"
 GOOD, CRITICAL, WARN, MUTED = "#1f9d55", "#d9503d", "#e0a530", "#c7cbd6"
-DISH_A, DISH_B = "#1b2a63", "#8facea"
-FIX_A, FIX_B = "#d9503d", "#f3b7ab"
+POS_SENT, NEU_SENT, NEG_SENT = "#1f9d55", "#c7cbd6", "#d9503d"
 CHART_TEXT = INK_2
 CARD_SHADOW = "0 1px 2px rgba(16,26,66,0.05), 0 10px 24px -14px rgba(16,26,66,0.22)"
+PLOTLY_CFG = {"displayModeBar": False}
+RU_MONTHS = ["", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+             "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"]
 
 st.markdown(
     textwrap.dedent(f"""
@@ -35,222 +35,62 @@ st.markdown(
       html, body, [class*="css"] {{ font-family:"Public Sans", system-ui, sans-serif; }}
       .stApp {{ background:{BG}; }}
       #MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"] {{ visibility:hidden; height:0; }}
-      .block-container{{ padding-top:0; padding-bottom:3rem; max-width:1180px; }}
+      .block-container{{ padding-top:0; padding-bottom:3rem; max-width:1220px; }}
       h1,h2,h3,h4,h5 {{ font-family:"Manrope", system-ui, sans-serif; }}
-      /* ---- hero banner ---- */
       .hero{{
         background:linear-gradient(135deg,{NAVY_DEEP} 0%,{NAVY} 62%,#2c418f 100%);
-        margin:0 -1rem 28px; padding:30px 40px 26px;
+        margin:0 -1rem 24px; padding:28px 40px 24px;
         border-radius:0 0 22px 22px;
         display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap;
         box-shadow:0 14px 30px -18px rgba(16,26,66,0.55);
       }}
-      .hero .kicker{{
-        font-size:11.5px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
-        color:{SKY}; margin-bottom:8px;
-      }}
+      .hero .kicker{{ font-size:11.5px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:{SKY}; margin-bottom:8px; }}
       .hero-title{{ display:flex; align-items:center; gap:14px; }}
-      .hero-title .tri{{
-        width:0; height:0; flex:none;
-        border-top:15px solid transparent; border-bottom:15px solid transparent;
-      }}
+      .hero-title .tri{{ width:0; height:0; flex:none; border-top:15px solid transparent; border-bottom:15px solid transparent; }}
       .hero-title .tri.left{{ border-left:20px solid {SKY}; }}
       .hero-title .tri.right{{ border-right:20px solid {SKY}; opacity:0.55; }}
-      .hero-title h1{{
-        margin:0; color:#ffffff; font-size:34px; font-weight:800; letter-spacing:-0.01em; white-space:nowrap;
-      }}
-      .hero .sub{{ color:#c7d3f4; font-size:13.5px; margin-top:8px; max-width:52ch; }}
-      .hero-chips{{ display:flex; flex-direction:column; gap:8px; align-items:flex-end; }}
-      .hero-chip{{
-        display:inline-flex; align-items:center; gap:8px;
-        background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.16);
-        border-radius:999px; padding:7px 14px; font-size:12.5px; color:#dfe7fb; white-space:nowrap;
-      }}
-      .hero-chip b{{ color:#ffffff; font-weight:700; font-variant-numeric:tabular-nums; }}
-      /* ---- section headers ---- */
+      .hero-title h1{{ margin:0; color:#ffffff; font-size:32px; font-weight:800; letter-spacing:-0.01em; white-space:nowrap; }}
+      .hero .sub{{ color:#c7d3f4; font-size:13.5px; margin-top:8px; max-width:56ch; }}
       .sec-head{{ display:flex; align-items:baseline; gap:10px; margin:6px 0 4px; }}
       .sec-head .bar{{ width:5px; height:20px; border-radius:3px; background:{NAVY}; flex:none; }}
-      .sec-head h2{{ font-size:19px; font-weight:800; color:{INK}; margin:0; }}
-      .sec-note{{ font-size:12.5px; color:{INK_MUTED}; margin:2px 0 16px 15px; }}
-      /* ---- kpi cards ---- */
-      .kpi-row{{ display:grid; grid-template-columns:repeat(5,minmax(150px,1fr)); gap:14px; margin-bottom:6px; }}
+      .sec-head h2{{ font-size:18px; font-weight:800; color:{INK}; margin:0; }}
+      .sec-note{{ font-size:12.5px; color:{INK_MUTED}; margin:2px 0 14px 15px; }}
+      .kpi-row{{ display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:14px; margin-bottom:6px; }}
       @media (max-width:900px){{ .kpi-row{{ grid-template-columns:repeat(2,1fr); }} }}
       .kpi-card{{
         background:{SURFACE}; border:1px solid {BORDER}; border-left:4px solid {NAVY}; border-radius:12px;
-        box-shadow:{CARD_SHADOW};
-        padding:16px 18px 14px; display:flex; flex-direction:column; gap:8px; min-width:0;
-        transition:transform .15s ease, box-shadow .15s ease;
+        box-shadow:{CARD_SHADOW}; padding:16px 18px 14px; display:flex; flex-direction:column; gap:8px; min-width:0;
       }}
-      .kpi-card:hover{{ transform:translateY(-2px); box-shadow:0 4px 10px rgba(16,26,66,0.08), 0 16px 30px -16px rgba(16,26,66,0.30); }}
       .kpi-card.good{{ border-left-color:{GOOD}; }}
       .kpi-card.flag{{ border-left-color:{CRITICAL}; }}
-      .kpi-card .kpi-label{{
-        font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;
-        color:{INK_MUTED}; line-height:1.4; min-height:30px;
-      }}
-      .kpi-card .kpi-value{{ font-family:"Manrope",sans-serif; font-size:30px; font-weight:800; color:{INK}; letter-spacing:-0.01em; }}
-      .kpi-card .kpi-value small{{ font-size:14px; font-weight:600; color:{INK_MUTED}; margin-left:2px; }}
+      .kpi-card.compare{{ border-left-color:{COMPARE_COLOR}; }}
+      .kpi-card .kpi-label{{ font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:{INK_MUTED}; line-height:1.4; min-height:28px; }}
+      .kpi-card .kpi-value{{ font-family:"Manrope",sans-serif; font-size:28px; font-weight:800; color:{INK}; letter-spacing:-0.01em; }}
+      .kpi-card .kpi-value small{{ font-size:13px; font-weight:600; color:{INK_MUTED}; margin-left:2px; }}
       .kpi-card .kpi-foot{{ font-size:11.5px; color:{INK_MUTED}; }}
       .kpi-card.flag .kpi-value{{ color:{CRITICAL}; }}
       .kpi-card.good .kpi-value{{ color:{GOOD}; }}
-      .side-card{{
-        background:{SURFACE}; border:1px solid {BORDER}; border-left:4px solid {GOOD}; border-radius:12px;
-        box-shadow:{CARD_SHADOW};
-        padding:20px 22px; height:100%; display:flex; flex-direction:column; justify-content:center; gap:8px;
-      }}
-      .side-card .kpi-value{{ font-family:"Manrope",sans-serif; font-size:32px; font-weight:800; color:{GOOD}; }}
-      .side-card .kpi-foot{{ font-size:12.5px; color:{INK_2}; line-height:1.55; }}
-      /* ---- chart card wrapper (st.container(border=True)) ---- */
-      div[data-testid="stVerticalBlockBorderWrapper"]{{
-        background:{SURFACE}; border:1px solid {BORDER} !important; border-radius:14px !important;
-        box-shadow:{CARD_SHADOW};
-      }}
+      .kpi-card.compare .kpi-value{{ color:{COMPARE_COLOR}; }}
+      div[data-testid="stVerticalBlockBorderWrapper"]{{ background:{SURFACE}; border:1px solid {BORDER} !important; border-radius:14px !important; box-shadow:{CARD_SHADOW}; }}
       div[data-testid="stVerticalBlockBorderWrapper"] > div {{ border-radius:14px; }}
-      /* ---- quotes ---- */
       .quote-card{{
         background:{SURFACE}; border:1px solid {BORDER}; border-left:3px solid {NAVY};
-        border-radius:8px; padding:13px 17px; margin-bottom:10px; font-style:italic; font-size:13.5px;
-        line-height:1.55; color:{INK_2}; box-shadow:{CARD_SHADOW};
+        border-radius:8px; padding:12px 16px; margin-bottom:9px; font-style:italic; font-size:13px;
+        line-height:1.5; color:{INK_2}; box-shadow:{CARD_SHADOW};
       }}
+      .quote-card.pos{{ border-left-color:{POS_SENT}; }}
+      .quote-card.neg{{ border-left-color:{NEG_SENT}; }}
       .quote-card::before{{content:"\\201C"; font-style:normal; font-weight:800; color:{NAVY}; margin-right:2px;}}
-      hr {{ border-color:{BORDER} !important; margin:30px 0 22px !important; }}
-      .foot-note {{ font-size:11.5px; color:{INK_MUTED}; line-height:1.6; }}
+      .legend-pill{{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:{INK_2}; margin-right:18px; }}
+      .legend-pill .sw{{ width:11px; height:11px; border-radius:3px; }}
+      hr {{ border-color:{BORDER} !important; margin:26px 0 20px !important; }}
+      .foot-note {{ font-size:11px; color:{INK_MUTED}; line-height:1.6; }}
+      .stTabs [data-baseweb="tab-list"] {{ gap:6px; }}
+      .stTabs [data-baseweb="tab"] {{ background:{SURFACE}; border-radius:10px 10px 0 0; padding:10px 18px; font-weight:600; }}
     </style>
     """),
     unsafe_allow_html=True,
 )
-
-# ------------------------------------------------------------- load data --
-@st.cache_data
-def load_data(path: str) -> pd.DataFrame:
-    return pd.read_excel(path, sheet_name="Sheet1")
-
-
-@st.cache_data
-def prepare(path: str):
-    df = load_data(path)
-    cols = list(df.columns)
-
-    short_labels = {
-        5: "Регулярность посещения",
-        6: "Удовлетворённость качеством питания",
-        7: "Разнообразие меню",
-        9: "Свежесть продуктов",
-        10: "Вкусовые качества",
-        11: "Температура подачи",
-        12: "Вежливость персонала",
-        13: "Санитария и чистота",
-        14: "Самочувствие после еды",
-    }
-
-    questions = []
-    means = []
-    for idx, label in short_labels.items():
-        s = df[cols[idx]].dropna().astype(int)
-        n = len(s)
-        pct = {k: round((s == k).sum() / n * 100, 1) for k in range(1, 6)}
-        mean = round(s.mean(), 2)
-        means.append(mean)
-        questions.append({"label": label, "mean": mean, "pct": pct, "n": n})
-    questions.sort(key=lambda q: q["mean"])
-
-    overall_index = round(sum(means) / len(means) / 5 * 100, 1)
-    total = len(df)
-
-    reg = df[cols[5]].dropna().astype(int)
-    regular_pct = round((reg >= 4).sum() / len(reg) * 100, 1)
-    sat = df[cols[6]].dropna().astype(int)
-    satisfied_pct = round((sat >= 4).sum() / len(sat) * 100, 1)
-
-    # collection window, dropping a lone far outlier date (gap > 60 days)
-    dates = df[cols[1]].dropna().sort_values()
-    gaps = dates.diff().dt.days
-    main_dates = dates[gaps.isna() | (gaps <= 60)]
-    date_min, date_max = main_dates.min(), main_dates.max()
-
-    # GI discomfort classification
-    def classify_gi(v):
-        if pd.isna(v):
-            return None
-        t = str(v).strip().lower()
-        if not t:
-            return None
-        if any(t.startswith(p) for p in ["нет", "жоқ", "жок", "no"]):
-            return "no"
-        if any(t.startswith(p) for p in ["да", "иә", "ия", "yes", "иа"]):
-            return "yes"
-        return "unclear"
-
-    gi = df[cols[16]].apply(classify_gi)
-    gi_counts = gi.value_counts(dropna=True)
-    gi_total = gi_counts.sum()
-    gi_summary = {k: round(v / gi_total * 100, 1) for k, v in gi_counts.items()}
-    for k in ["yes", "no", "unclear"]:
-        gi_summary.setdefault(k, 0.0)
-
-    junk = {
-        "все", "нет", ".", "-", "никакие", "не знаю", "затрудняюсь ответить", "",
-        "все блюда", "всё", "всё нравится", "все нравится", "все устраивает",
-        "всё устраивает", "не пробовал", "не пробовала", "n/a", "na", "?", "..", "...",
-        "нет таких", "ничего", "никакой", "никаких", "все норм", "все нормально",
-        "все хорошо", "почти все", "все вкусно",
-    }
-
-    def top_phrases(colidx, top_n=10, min_count=3):
-        s = df[cols[colidx]].dropna().astype(str).str.strip().str.lower()
-        s = s[~s.isin(junk) & (s.str.len() > 1)]
-        vc = s.value_counts()
-        vc = vc[vc >= min_count]
-        return [{"label": k.capitalize(), "count": int(v)} for k, v in vc.head(top_n).items()]
-
-    top_dishes = top_phrases(8)
-    improve_dishes = top_phrases(15)
-
-    s15 = df[cols[15]].dropna().astype(str).str.strip().str.lower()
-    no_complaint_pct = round(s15.isin(junk).sum() / len(s15) * 100, 1)
-
-    def is_gibberish(t):
-        letters = re.sub(r"[^a-zа-яёқғңөұүhі]", "", t.lower())
-        if len(letters) < 8:
-            return True
-        return len(set(letters)) / len(letters) < 0.28
-
-    raw17 = df[cols[17]].dropna().astype(str).str.strip()
-    candidates, seen = [], set()
-    for t in raw17:
-        tl = t.lower()
-        if tl in junk or len(t) < 20 or len(t) > 220 or is_gibberish(t):
-            continue
-        key = tl[:40]
-        if key in seen:
-            continue
-        seen.add(key)
-        candidates.append(t)
-    candidates.sort(key=len, reverse=True)
-    quotes = candidates[:8]
-
-    return {
-        "total": total,
-        "date_min": date_min,
-        "date_max": date_max,
-        "overall_index": overall_index,
-        "regular_pct": regular_pct,
-        "satisfied_pct": satisfied_pct,
-        "gi_summary": gi_summary,
-        "no_complaint_pct": no_complaint_pct,
-        "questions": questions,
-        "top_dishes": top_dishes,
-        "improve_dishes": improve_dishes,
-        "quotes": quotes,
-    }
-
-
-data_path = Path(__file__).parent / DATA_FILE
-if not data_path.exists():
-    st.error(f"Не найден файл с данными: {DATA_FILE}. Положите его рядом с streamlit_app.py")
-    st.stop()
-
-d = prepare(str(data_path))
 
 
 def section_head(title, note):
@@ -261,204 +101,431 @@ def section_head(title, note):
     )
 
 
-PLOTLY_CFG = {"displayModeBar": False}
+def kpi_row(items):
+    st.markdown(
+        '<div class="kpi-row">' + "".join(
+            f'''<div class="kpi-card {cls}">
+                  <div class="kpi-label">{label}</div>
+                  <div class="kpi-value">{value}<small>{suffix}</small></div>
+                  <div class="kpi-foot">{foot}</div>
+                </div>'''
+            for label, value, suffix, cls, foot in items
+        ) + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================== data model --
+@dataclass
+class Question:
+    col: int
+    label: str
+    kind: str  # "numeric15" or "categorical"
+    categories: list = field(default_factory=list)   # required for "categorical"
+    normalize: object = None                          # fn(raw_str) -> canonical category | None
+
+
+@dataclass
+class Segment:
+    col: int
+    label: str
+    extract: object  # fn(raw_str) -> list[str] of tags
+
+
+@dataclass
+class SurveyConfig:
+    key: str
+    title: str
+    icon: str
+    file_glob: str
+    date_col: int
+    questions: list
+    comment_cols: list
+    segment: object = None
+
+
+def yn_normalize(raw):
+    if pd.isna(raw):
+        return None
+    t = str(raw).strip().lower()
+    if t.startswith("да") or t.startswith("yes") or t.startswith("иә") or t.startswith("ия"):
+        return "Да"
+    if t.startswith("нет") or t.startswith("no") or t.startswith("жок"):
+        return "Нет"
+    return None
+
+
+def prefix_normalize(order):
+    prefixes = [(p.lower(), p) for p in order]
+
+    def fn(raw):
+        if pd.isna(raw):
+            return None
+        t = str(raw).strip().lower()
+        for p_low, p_orig in prefixes:
+            if t.startswith(p_low):
+                return p_orig
+        return None
+    return fn
+
+
+def extract_locations(raw):
+    if pd.isna(raw):
+        return []
+    return [p.strip() for p in str(raw).split(";") if p.strip()]
+
+
+ROUTE_RE = re.compile(r"[Мм]аршрут\s*#?\s*(\d+)")
+
+
+def extract_routes(raw):
+    if pd.isna(raw):
+        return []
+    nums = ROUTE_RE.findall(str(raw))
+    if nums:
+        return [f"Маршрут #{n}" for n in sorted(set(int(n) for n in nums))]
+    return ["Другое / личный транспорт"]
+
+
+CANTEEN = SurveyConfig(
+    key="canteen", title="Столовая · Асхана", icon="🍲",
+    file_glob="СТОЛОВАЯ*.xlsx", date_col=1,
+    segment=Segment(col=6, label="Локация столовой", extract=extract_locations),
+    questions=[
+        Question(11, "Вкус и качество блюд", "numeric15"),
+        Question(12, "Полезность питания", "numeric15"),
+        Question(13, "Чистота и гигиена", "numeric15"),
+        Question(14, "Разнообразие меню", "numeric15"),
+        Question(15, "Размер порций", "numeric15"),
+        Question(17, "Проблемы ЖКТ после еды", "categorical", ["Да", "Нет"], yn_normalize),
+    ],
+    comment_cols=[18],
+)
+
+TRANSPORT = SurveyConfig(
+    key="transport", title="Транспорт · Развозка", icon="🚐",
+    file_glob="ТРАНСПОРТ*.xlsx", date_col=1,
+    segment=Segment(col=6, label="Маршрут", extract=extract_routes),
+    questions=[
+        Question(7, "Место сбора", "numeric15"),
+        Question(8, "Пунктуальность", "numeric15"),
+        Question(9, "Охват маршрутов", "numeric15"),
+        Question(10, "Достаточность мест", "numeric15"),
+        Question(11, "Безопасность", "numeric15"),
+        Question(12, "Комфорт", "numeric15"),
+        Question(13, "Соответствие расписанию", "numeric15"),
+    ],
+    comment_cols=[14, 15],
+)
+
+DMS = SurveyConfig(
+    key="dms", title="Медстраховка · ДМС", icon="🩺",
+    file_glob="МЕДИЦИНСКАЯ*.xlsx", date_col=1,
+    segment=None,
+    questions=[
+        Question(7, "Пользовались страховкой за 12 мес.", "categorical", ["Да", "Нет"], yn_normalize),
+        Question(11, "Частота доплат сверх покрытия", "categorical",
+                 ["Никогда", "Редко", "Иногда", "Часто", "Всегда"],
+                 prefix_normalize(["Никогда", "Редко", "Иногда", "Часто", "Всегда"])),
+        Question(14, "Удовлетворённость услугами", "numeric15"),
+        Question(15, "Время ожидания услуги", "numeric15"),
+        Question(17, "Откладывали лечение из-за лимитов", "categorical", ["Да", "Нет"], yn_normalize),
+        Question(19, "Обращались за ночной помощью", "categorical", ["Да", "Нет"], yn_normalize),
+    ],
+    comment_cols=[21],
+)
+
+SURVEYS = [CANTEEN, TRANSPORT, DMS]
+
+
+@st.cache_data
+def load_survey(file_glob: str) -> pd.DataFrame:
+    matches = glob.glob(str(BASE_DIR / file_glob))
+    if not matches:
+        return pd.DataFrame()
+    df = pd.read_excel(matches[0], sheet_name=0)
+    return df
+
+
+# ============================================================ sentiment --
+POSITIVE_WORDS = [
+    "хорош", "отличн", "супер", "прекрасн", "устраива", "нрав", "спасибо",
+    "вкусн", "удобн", "быстр", "чист", "довол", "класс", "молодц", "комфорт",
+    "satisfied", "good", "great", "excellent", "жаксы", "рахмет",
+]
+NEGATIVE_WORDS = [
+    "плохо", "ужас", "грязн", "долго", "неудобн", "жалоб", "проблем",
+    "не работа", "не устраива", "недостаточ", "не хвата", "хамств", "груб",
+    "опаздыва", "не приезжа", "жирн", "невкусн", "холодн", "дорог", "медленн",
+    "отказ", "некомпетент", "bad", "poor", "terrible", "slow", "жаман",
+]
+NEGATION_WORDS = {"не", "ни", "нет", "no", "not", "жоқ", "жок"}
+WORD_RE = re.compile(r"[a-zа-яёқғңөұүhі]+")
+NO_COMMENT = {
+    "нет", "-", ".", "..", "...", "", "нет комментариев", "без комментариев",
+    "нету", "коментариев нет", "комментариев нет", "жок", "нема", "no", "net",
+    "n/a", "na", "?", "нет отзывов", "все хорошо.", "-.",
+}
+
+
+def is_gibberish(t):
+    letters = re.sub(r"[^a-zа-яёқғңөұүhі]", "", t.lower())
+    if len(letters) < 6:
+        return True
+    return len(set(letters)) / len(letters) < 0.28
+
+
+def clean_comments(series: pd.Series):
+    out = []
+    for raw in series.dropna():
+        t = str(raw).strip()
+        tl = t.lower()
+        if tl in NO_COMMENT or len(t) < 4 or is_gibberish(t):
+            continue
+        out.append(t)
+    return out
+
+
+def sentiment_of(text):
+    t = text.lower()
+    pos = neg = 0
+
+    # multi-word / phrase-level negative cues (already encode their own negation)
+    neg += sum(1 for w in NEGATIVE_WORDS if w in t)
+
+    # single-stem positive cues, flipped to negative when directly negated
+    # ("не вкусно" must not count as positive just because it contains "вкусн")
+    tokens = WORD_RE.findall(t)
+    for i, tok in enumerate(tokens):
+        stem = next((w for w in POSITIVE_WORDS if tok.startswith(w)), None)
+        if stem is None:
+            continue
+        negated = i > 0 and tokens[i - 1] in NEGATION_WORDS
+        if negated:
+            neg += 1
+        else:
+            pos += 1
+
+    if pos > neg:
+        return "pos"
+    if neg > pos:
+        return "neg"
+    return "neu"
+
+
+# ============================================================ rendering --
+def period_options(df, date_col):
+    dt = pd.to_datetime(df.iloc[:, date_col], errors="coerce")
+    periods = dt.dropna().dt.to_period("M").unique()
+    periods = sorted(periods)
+    labels = [f"{RU_MONTHS[p.month]} {p.year}" for p in periods]
+    return periods, labels
+
+
+def render_grouped_bar(cats, cur_vals, cmp_vals, cur_label, cmp_label, x_title=""):
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=cats, y=cmp_vals, name=cmp_label, marker=dict(color=COMPARE_COLOR, cornerradius=4)))
+    fig.add_trace(go.Bar(x=cats, y=cur_vals, name=cur_label, marker=dict(color=CURRENT_COLOR, cornerradius=4)))
+    fig.update_layout(
+        barmode="group", height=230, margin=dict(l=10, r=10, t=6, b=30),
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=CHART_TEXT, family="Public Sans, sans-serif", size=11.5),
+        showlegend=False,
+        xaxis=dict(showgrid=False, title=x_title, color=CHART_TEXT),
+        yaxis=dict(showgrid=True, gridcolor="rgba(20,27,46,0.06)", ticksuffix="%", color=CHART_TEXT),
+        bargap=0.28, bargroupgap=0.12,
+    )
+    return fig
+
+
+def render_survey(cfg: SurveyConfig):
+    df = load_survey(cfg.file_glob)
+    if df.empty:
+        st.warning(f"Файл с данными для «{cfg.title}» не найден рядом со streamlit_app.py.")
+        return
+    cols = list(df.columns)
+    dt = pd.to_datetime(df[cols[cfg.date_col]], errors="coerce")
+    df = df.assign(_dt=dt, _period=dt.dt.to_period("M"))
+
+    periods, labels = period_options(df, cfg.date_col)
+    if not periods:
+        st.warning("В файле нет распознаваемых дат.")
+        return
+    label_by_period = dict(zip(periods, labels))
+    period_by_label = dict(zip(labels, periods))
+
+    # default to the two best-populated waves (not just the newest calendar month,
+    # which may be a near-empty tail), later one = current, earlier one = compare
+    counts = df["_period"].value_counts()
+    busiest = sorted(periods, key=lambda p: counts.get(p, 0), reverse=True)[:2]
+    busiest.sort()
+    if len(busiest) == 2:
+        default_compare, default_current = [label_by_period[busiest[0]]], [label_by_period[busiest[1]]]
+    elif busiest:
+        default_current, default_compare = [label_by_period[busiest[0]]], []
+    else:
+        default_current, default_compare = [], []
+
+    filt_cols = st.columns([1.3, 1.3, 1.4] if cfg.segment else [1.5, 1.5])
+    with filt_cols[0]:
+        cur_sel = st.multiselect("Текущий период", labels, default=default_current, key=f"{cfg.key}_cur",
+                                  placeholder="Выберите период")
+    with filt_cols[1]:
+        cmp_sel = st.multiselect("Период сравнения", labels, default=default_compare, key=f"{cfg.key}_cmp",
+                                  placeholder="Выберите период")
+
+    seg_selected = None
+    if cfg.segment:
+        raw_tags = df[cols[cfg.segment.col]].apply(cfg.segment.extract)
+        all_tags = sorted({t for tags in raw_tags for t in tags})
+        with filt_cols[2]:
+            seg_selected = st.multiselect(cfg.segment.label, all_tags, default=[], key=f"{cfg.key}_seg",
+                                           placeholder="Все")
+        if seg_selected:
+            mask = raw_tags.apply(lambda tags: any(t in seg_selected for t in tags))
+            df = df[mask]
+            df = df.assign(_dt=df["_dt"], _period=df["_period"])
+
+    cur_periods = {period_by_label[l] for l in cur_sel}
+    cmp_periods = {period_by_label[l] for l in cmp_sel}
+    df_cur = df[df["_period"].isin(cur_periods)]
+    df_cmp = df[df["_period"].isin(cmp_periods)]
+
+    n_total, n_cur, n_cmp = len(df), len(df_cur), len(df_cmp)
+    delta_pct = round((n_cur - n_cmp) / n_cmp * 100, 1) if n_cmp else None
+
+    kpi_row([
+        ("Анкет всего в файле", n_total, "", "", "за всю историю сбора"),
+        ("Текущий период", n_cur, "", "", ", ".join(cur_sel) or "период не выбран"),
+        ("Период сравнения", n_cmp, "", "compare", ", ".join(cmp_sel) or "период не выбран"),
+        ("Изменение отклика", (f"{'+' if delta_pct and delta_pct > 0 else ''}{delta_pct}" if delta_pct is not None else "—"),
+         "%" if delta_pct is not None else "", "good" if (delta_pct or 0) >= 0 else "flag", "кол-во анкет, тек. vs сравнение"),
+    ])
+
+    st.markdown(
+        f'<span class="legend-pill"><span class="sw" style="background:{CURRENT_COLOR}"></span>Текущий период</span>'
+        f'<span class="legend-pill"><span class="sw" style="background:{COMPARE_COLOR}"></span>Период сравнения</span>',
+        unsafe_allow_html=True,
+    )
+
+    st.write("")
+    section_head("Динамика количества ответов", "Число заполненных анкет по месяцам за всю историю сбора (с учётом фильтра сегмента)")
+    monthly = df.groupby("_period").size().reindex(periods, fill_value=0)
+    bar_colors = [CURRENT_COLOR if p in cur_periods else (COMPARE_COLOR if p in cmp_periods else MUTED) for p in periods]
+    fig = go.Figure(go.Bar(
+        x=[label_by_period[p] for p in periods], y=monthly.values,
+        marker=dict(color=bar_colors, cornerradius=4),
+        text=monthly.values, textposition="outside", textfont=dict(color=CHART_TEXT),
+        hovertemplate="%{x}: <b>%{y}</b> анкет<extra></extra>",
+    ))
+    fig.update_layout(
+        height=260, margin=dict(l=10, r=10, t=10, b=10),
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=CHART_TEXT, family="Public Sans, sans-serif"),
+        xaxis=dict(showgrid=False, color=CHART_TEXT), yaxis=dict(showgrid=False, visible=False),
+    )
+    with st.container(border=True):
+        st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+
+    st.write("")
+    section_head("Ответы по вопросам", "Текущий период (навy) в сравнении с выбранным периодом сравнения (голубой)")
+    q_cols = st.columns(2)
+    for i, q in enumerate(cfg.questions):
+        col_name = cols[q.col]
+        with q_cols[i % 2]:
+            with st.container(border=True):
+                st.markdown(f"**{q.label}**")
+                if q.kind == "numeric15":
+                    cur_s = pd.to_numeric(df_cur[col_name], errors="coerce").dropna()
+                    cmp_s = pd.to_numeric(df_cmp[col_name], errors="coerce").dropna()
+                    cats = ["1", "2", "3", "4", "5"]
+                    cur_vals = [round((cur_s == k).sum() / len(cur_s) * 100, 1) if len(cur_s) else 0 for k in range(1, 6)]
+                    cmp_vals = [round((cmp_s == k).sum() / len(cmp_s) * 100, 1) if len(cmp_s) else 0 for k in range(1, 6)]
+                    fig = render_grouped_bar(cats, cur_vals, cmp_vals, "Текущий", "Сравнение", "оценка (1–5)")
+                else:
+                    cur_norm = df_cur[col_name].apply(q.normalize).dropna()
+                    cmp_norm = df_cmp[col_name].apply(q.normalize).dropna()
+                    cur_vals = [round((cur_norm == c).sum() / len(cur_norm) * 100, 1) if len(cur_norm) else 0 for c in q.categories]
+                    cmp_vals = [round((cmp_norm == c).sum() / len(cmp_norm) * 100, 1) if len(cmp_norm) else 0 for c in q.categories]
+                    fig = render_grouped_bar(q.categories, cur_vals, cmp_vals, "Текущий", "Сравнение")
+                st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+                cur_n = len(pd.to_numeric(df_cur[col_name], errors="coerce").dropna()) if q.kind == "numeric15" else df_cur[col_name].apply(q.normalize).dropna().shape[0]
+                cmp_n = len(pd.to_numeric(df_cmp[col_name], errors="coerce").dropna()) if q.kind == "numeric15" else df_cmp[col_name].apply(q.normalize).dropna().shape[0]
+                st.caption(f"n тек. = {cur_n} · n сравн. = {cmp_n}")
+
+    st.write("")
+    section_head("Комментарии сотрудников", "Пустые и малоинформативные ответы исключены; тональность определена по ключевым словам (эвристика)")
+    all_comments_cur = []
+    for c in cfg.comment_cols:
+        all_comments_cur += clean_comments(df_cur[cols[c]])
+    all_comments_cmp = []
+    for c in cfg.comment_cols:
+        all_comments_cmp += clean_comments(df_cmp[cols[c]])
+
+    def sentiment_shares(comments):
+        if not comments:
+            return {"pos": 0, "neu": 0, "neg": 0}
+        tags = [sentiment_of(c) for c in comments]
+        n = len(tags)
+        return {k: round(tags.count(k) / n * 100, 1) for k in ["pos", "neu", "neg"]}
+
+    cur_sent = sentiment_shares(all_comments_cur)
+    cmp_sent = sentiment_shares(all_comments_cmp)
+
+    col_s1, col_s2 = st.columns([1, 1.4])
+    with col_s1:
+        with st.container(border=True):
+            st.markdown(f"**Тональность комментариев** &nbsp;·&nbsp; тек. n={len(all_comments_cur)}, сравн. n={len(all_comments_cmp)}")
+            fig = render_grouped_bar(["Позитив", "Нейтрально", "Негатив"],
+                                      [cur_sent["pos"], cur_sent["neu"], cur_sent["neg"]],
+                                      [cmp_sent["pos"], cmp_sent["neu"], cmp_sent["neg"]],
+                                      "Текущий", "Сравнение")
+            st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+
+    with col_s2:
+        st.markdown("**Комментарии за текущий период**")
+        tabs = st.tabs([f"Позитивные ({sum(1 for c in all_comments_cur if sentiment_of(c)=='pos')})",
+                        f"Негативные ({sum(1 for c in all_comments_cur if sentiment_of(c)=='neg')})",
+                        f"Нейтральные ({sum(1 for c in all_comments_cur if sentiment_of(c)=='neu')})"])
+        buckets = {"pos": [], "neg": [], "neu": []}
+        for c in all_comments_cur:
+            buckets[sentiment_of(c)].append(c)
+        for tab, key, cls in zip(tabs, ["pos", "neg", "neu"], ["pos", "neg", ""]):
+            with tab:
+                sample = buckets[key][:8]
+                if not sample:
+                    st.caption("Нет комментариев в этой категории за выбранный период.")
+                for q in sample:
+                    st.markdown(f'<div class="quote-card {cls}">{q}</div>', unsafe_allow_html=True)
+
 
 # ------------------------------------------------------------------ hero --
 st.markdown(
-    textwrap.dedent(f"""
+    textwrap.dedent("""
     <div class="hero">
       <div>
-        <div class="kicker">Опрос сотрудников · Столовая «Асхана»</div>
+        <div class="kicker">Satisfaction Survey · Прототип для обсуждения</div>
         <div class="hero-title">
           <span class="tri left"></span>
-          <h1>Пульс столовой</h1>
+          <h1>Опросы удовлетворённости</h1>
           <span class="tri right"></span>
         </div>
-        <div class="sub">Как сотрудники оценивают питание, сервис и чистоту — по {d['total']} анонимным анкетам.</div>
-      </div>
-      <div class="hero-chips">
-        <span class="hero-chip">Ответов&nbsp;<b>{d['total']}</b></span>
-        <span class="hero-chip">Период&nbsp;<b>{d['date_min'].strftime('%d.%m')}–{d['date_max'].strftime('%d.%m.%Y')}</b></span>
-        <span class="hero-chip">Анкета&nbsp;<b>RU · KZ · EN</b></span>
+        <div class="sub">Столовая, транспорт и медстраховка — сравнение текущей волны опроса с предыдущим периодом.</div>
       </div>
     </div>
     """),
     unsafe_allow_html=True,
 )
 
-# --------------------------------------------------------------------- kpi --
-gi_yes = d["gi_summary"]["yes"]
-kpis = [
-    ("Индекс удовлетворённости", d["overall_index"], "/100", "", "среднее по 9 критериям"),
-    ("Регулярно пользуются столовой", d["regular_pct"], "%", "good", "оценка 4–5 из 5"),
-    ("Полностью довольны питанием", d["satisfied_pct"], "%", "", "оценка 4–5 из 5"),
-    ("Отмечают дискомфорт после еды", gi_yes, "%", "flag", "жалобы на ЖКТ"),
-    ("Нет претензий к меню", d["no_complaint_pct"], "%", "good", "ответ «нет» / «всё устраивает»"),
-]
-st.markdown(
-    '<div class="kpi-row">' + "".join(
-        f'''<div class="kpi-card {cls}">
-              <div class="kpi-label">{label}</div>
-              <div class="kpi-value">{value}<small>{suffix}</small></div>
-              <div class="kpi-foot">{foot}</div>
-            </div>'''
-        for label, value, suffix, cls, foot in kpis
-    ) + "</div>",
-    unsafe_allow_html=True,
-)
-
-st.divider()
-
-# ------------------------------------------------------ diverging Likert --
-section_head("Оценка по направлениям", "Доля ответов 1–5 по каждому вопросу — от слабых зон к сильным")
-
-Q = d["questions"][::-1]  # weakest at the top of the horizontal bar chart
-labels = [q["label"] for q in Q]
-means = [q["mean"] for q in Q]
-
-def seg(qs, key):
-    return [q["pct"][key] for q in qs]
-
-half3 = [q["pct"][3] / 2 for q in Q]
-base1 = [-(h + q["pct"][2] + q["pct"][1]) for h, q in zip(half3, Q)]
-base2 = [-(h + q["pct"][2]) for h, q in zip(half3, Q)]
-base3 = [-h for h in half3]
-base4 = [h for h in half3]
-base5 = [h + q["pct"][4] for h, q in zip(half3, Q)]
-
-fig = go.Figure()
-trace_specs = [
-    ("1 — совсем не согласны", 1, base1, NEG_1),
-    ("2", 2, base2, NEG_2),
-    ("3 — нейтрально", 3, base3, NEU_3),
-    ("4", 4, base4, POS_4),
-    ("5 — полностью согласны", 5, base5, POS_5),
-]
-for name, key, base, color in trace_specs:
-    fig.add_trace(go.Bar(
-        y=labels, x=seg(Q, key), base=base, orientation="h", name=name,
-        marker=dict(color=color, line=dict(width=1, color=SURFACE)),
-        hovertemplate="%{x}%% — оценка " + str(key) + "<br>%{y}<extra></extra>",
-    ))
-
-right_edges = [b5 + q["pct"][5] for b5, q in zip(base5, Q)]
-label_x = max(right_edges) + 3.5
-for lab, m in zip(labels, means):
-    fig.add_annotation(x=label_x, y=lab, text=f"<b>{m:.2f}</b>", showarrow=False,
-                        xanchor="left", font=dict(size=12.5, color=INK), xref="x", yref="y")
-
-fig.update_layout(
-    barmode="overlay", height=420, margin=dict(l=10, r=60, t=48, b=10),
-    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-    font=dict(color=CHART_TEXT, family="Public Sans, sans-serif"),
-    bargap=0.32,
-    legend=dict(orientation="h", yanchor="bottom", y=1.04, xanchor="left", x=0, font=dict(size=12, color=CHART_TEXT)),
-    xaxis=dict(showticklabels=False, showgrid=False, zeroline=True, zerolinewidth=1, zerolinecolor="rgba(20,27,46,0.18)"),
-    yaxis=dict(showgrid=False, color=CHART_TEXT),
-)
-with st.container(border=True):
-    st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
-
-st.divider()
-
-# ------------------------------------------------------------ dish panels --
-section_head("Что говорят о меню", "Свободные ответы, сгруппированные по упоминаниям блюд")
-
-col_a, col_b = st.columns(2)
-
-
-def dish_chart(items, color_top, color_rest):
-    items = items[::-1]  # so the largest ends up on top in a horizontal bar
-    colors = [color_top if i == len(items) - 1 else color_rest for i in range(len(items))]
-    fig = go.Figure(go.Bar(
-        y=[i["label"] for i in items], x=[i["count"] for i in items], orientation="h",
-        marker=dict(color=colors, cornerradius=5),
-        text=[i["count"] for i in items], textposition="outside",
-        textfont=dict(color=CHART_TEXT),
-        hovertemplate="%{y}: <b>%{x}</b> упоминаний<extra></extra>",
-    ))
-    fig.update_layout(
-        height=340, margin=dict(l=10, r=30, t=10, b=10),
-        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color=CHART_TEXT, family="Public Sans, sans-serif"),
-        bargap=0.35,
-        xaxis=dict(showticklabels=False, showgrid=False),
-        yaxis=dict(showgrid=False, color=CHART_TEXT),
-    )
-    return fig
-
-
-with col_a:
-    with st.container(border=True):
-        st.markdown("**Чаще всего хвалят**")
-        st.caption("Топ-10 блюд · «какие блюда самые удачные»")
-        st.plotly_chart(dish_chart(d["top_dishes"], DISH_A, DISH_B), width="stretch", config=PLOTLY_CFG)
-
-with col_b:
-    with st.container(border=True):
-        st.markdown("**Просят доработать**")
-        st.caption("Топ-10 блюд · «что нужно улучшить»")
-        st.plotly_chart(dish_chart(d["improve_dishes"], FIX_A, FIX_B), width="stretch", config=PLOTLY_CFG)
-
-st.divider()
-
-# -------------------------------------------------------------- health --
-section_head("Сигналы здоровья и питания", "Дискомфорт ЖКТ после еды и запрос на альтернативный рацион")
-
-col_h1, col_h2 = st.columns([1, 1])
-with col_h1:
-    with st.container(border=True):
-        st.markdown("**Дискомфорт ЖКТ после еды в столовой**")
-        gi = d["gi_summary"]
-        order = [
-            ("Да, бывает дискомфорт", "yes", CRITICAL),
-            ("Нет, не сталкивались", "no", GOOD),
-            ("Ответ неясен / без ответа", "unclear", MUTED),
-        ]
-        fig = go.Figure(go.Pie(
-            labels=[o[0] for o in order],
-            values=[gi[o[1]] for o in order],
-            hole=0.68,
-            marker=dict(colors=[o[2] for o in order], line=dict(color=SURFACE, width=3)),
-            textinfo="percent",
-            textfont=dict(color="#ffffff", size=13, family="Manrope, sans-serif"),
-            hovertemplate="%{label}: <b>%{value}%</b><extra></extra>",
-            sort=False,
-        ))
-        fig.update_layout(
-            height=280, margin=dict(l=10, r=10, t=10, b=10),
-            paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(color=CHART_TEXT, family="Public Sans, sans-serif"),
-            showlegend=True, legend=dict(orientation="h", yanchor="top", y=-0.05, xanchor="center", x=0.5, font=dict(size=11.5)),
-            annotations=[dict(text=f"<b>{gi['yes']}%</b><br><span style='font-size:11px'>жалобы на ЖКТ</span>",
-                               x=0.5, y=0.5, showarrow=False, font=dict(size=20, color=INK, family="Manrope, sans-serif"))],
-        )
-        st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
-
-with col_h2:
-    st.markdown(
-        f'''<div class="side-card">
-              <div class="kpi-value">{d['no_complaint_pct']}%</div>
-              <div class="kpi-foot">сотрудников не назвали ни одного блюда, которое стоит убрать или
-              доработать — прямых претензий к меню нет.</div>
-            </div>''',
-        unsafe_allow_html=True,
-    )
-
-st.divider()
-
-# --------------------------------------------------------------- quotes --
-section_head("Голос сотрудников", "Отобранные развёрнутые комментарии из открытого поля отзывов")
-
-qcol1, qcol2 = st.columns(2)
-for i, q in enumerate(d["quotes"]):
-    target = qcol1 if i % 2 == 0 else qcol2
-    target.markdown(f'<div class="quote-card">{q}</div>', unsafe_allow_html=True)
+tabs = st.tabs([f"{s.icon} {s.title}" for s in SURVEYS])
+for tab, cfg in zip(tabs, SURVEYS):
+    with tab:
+        render_survey(cfg)
 
 st.divider()
 st.markdown(
-    f'''<div class="foot-note">Источник: анонимный онлайн-опрос сотрудников о корпоративной столовой «Асхана» (RU/KZ/EN),
-    {d['total']} ответов. Индекс удовлетворённости — среднее по девяти вопросам шкалы 1–5, приведённое к 0–100.
-    Открытые ответы очищены от пустых и малоинформативных записей перед подсчётом упоминаний блюд.</div>''',
+    '<div class="foot-note">Прототип для внутреннего обсуждения. Тональность комментариев определяется '
+    'простым эвристическим анализом ключевых слов, а не полноценной NLP-моделью, и может ошибаться на сарказме '
+    'и сложных формулировках — на следующих итерациях можно уточнить словарь или подключить более точную модель.</div>',
     unsafe_allow_html=True,
 )

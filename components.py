@@ -4,8 +4,9 @@ import textwrap
 import streamlit as st
 
 from config import (BG, BORDER, CARD_SHADOW, COMPARE_COLOR, CRITICAL, GOOD, INK, INK_2, INK_MUTED,
-                    NAVY, NAVY_DEEP, NEG_SENT, POS_SENT, SKY, SURFACE)
+                    NAVY, NAVY_DEEP, NEG_SENT, POS_SENT, SKY, SURFACE, WARN)
 from i18n import tr
+from stats import LOW_N, NO_COMPARE, NOT_SIGNIFICANT, SIGNIFICANT
 
 
 def inject_css():
@@ -62,6 +63,43 @@ def inject_css():
           .kpi-card .kpi-value{{ font-family:"Manrope",sans-serif; font-size:28px; font-weight:800; color:{INK}; letter-spacing:-0.01em; }}
           .kpi-card .kpi-value small{{ font-size:13px; font-weight:600; color:{INK_MUTED}; margin-left:2px; }}
           .kpi-card .kpi-foot{{ font-size:11.5px; color:{INK_MUTED}; }}
+          .kpi-delta{{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:12.5px; font-weight:700; color:{INK_2}; }}
+          .kpi-delta .sig{{ font-size:11px; font-weight:500; color:{INK_MUTED}; }}
+          .kpi-delta.good{{ color:{GOOD}; }}
+          .kpi-delta.bad{{ color:{CRITICAL}; }}
+          .kpi-delta.muted{{ color:{INK_MUTED}; font-weight:600; }}
+          .delta-line{{ font-size:12.5px; color:{INK_2}; margin:-6px 0 6px; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }}
+          .delta-line b{{ color:{INK}; }}
+          .delta-line .d{{ font-weight:700; }}
+          .delta-line .d.good{{ color:{GOOD}; }}
+          .delta-line .d.bad{{ color:{CRITICAL}; }}
+          .delta-line .d.muted{{ color:{INK_MUTED}; font-weight:600; }}
+          .delta-line .sig{{ font-size:11px; color:{INK_MUTED}; }}
+          .counts-line{{ font-size:12px; color:{INK_MUTED}; margin:-4px 0 10px 2px; }}
+          .insights{{ background:{SURFACE}; border:1px solid {BORDER}; border-left:4px solid {NAVY}; border-radius:12px;
+                      box-shadow:{CARD_SHADOW}; padding:14px 18px 10px; margin:4px 0 18px; }}
+          .insights ul{{ margin:0; padding-left:0; list-style:none; }}
+          .insights li{{ font-size:13.5px; color:{INK}; line-height:1.5; padding:5px 0 5px 22px; position:relative; }}
+          .insights li::before{{ content:""; position:absolute; left:4px; top:12px; width:9px; height:9px; border-radius:50%; background:{INK_MUTED}; }}
+          .insights li.neg::before{{ background:{CRITICAL}; }}
+          .insights li.alert::before{{ background:{WARN}; }}
+          .insights li.polar::before{{ background:{SKY}; }}
+          .insights li.pos::before{{ background:{GOOD}; }}
+          .insights li.neutral{{ color:{INK_2}; }}
+          .ov-row{{ display:grid; grid-template-columns:repeat(3,minmax(220px,1fr)); gap:16px; margin:4px 0 12px; }}
+          @media (max-width:900px){{ .ov-row{{ grid-template-columns:1fr; }} }}
+          .ov-card{{ background:{SURFACE}; border:1px solid {BORDER}; border-top:4px solid {NAVY}; border-radius:14px;
+                     box-shadow:{CARD_SHADOW}; padding:18px 20px 14px; display:flex; flex-direction:column; gap:10px; }}
+          .ov-card.flag{{ border-top-color:{CRITICAL}; }}
+          .ov-card.good{{ border-top-color:{GOOD}; }}
+          .ov-card .ov-title{{ font-family:"Manrope",sans-serif; font-size:17px; font-weight:800; color:{INK}; }}
+          .ov-card .ov-sub{{ font-size:11.5px; color:{INK_MUTED}; margin-top:-6px; }}
+          .ov-card .ov-value{{ font-family:"Manrope",sans-serif; font-size:40px; font-weight:800; color:{INK}; line-height:1; letter-spacing:-0.02em; }}
+          .ov-card .ov-value small{{ font-size:14px; font-weight:600; color:{INK_MUTED}; margin-left:4px; }}
+          .ov-card .ov-label{{ font-size:11px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:{INK_MUTED}; }}
+          .ov-card .ov-problem{{ font-size:13px; color:{INK}; line-height:1.45; }}
+          .ov-card .ov-problem b{{ color:{CRITICAL}; }}
+          .ov-card .ov-link{{ font-size:11.5px; color:{SKY}; font-weight:600; border-top:1px solid {BORDER}; padding-top:10px; margin-top:auto; }}
           .kpi-card.flag .kpi-value{{ color:{CRITICAL}; }}
           .kpi-card.good .kpi-value{{ color:{GOOD}; }}
           .kpi-card.compare .kpi-value{{ color:{COMPARE_COLOR}; }}
@@ -123,15 +161,87 @@ def section_head(title, note):
     )
 
 
+def sig_label(status, lang):
+    """Метка значимости для статуса сравнения из stats.py."""
+    return {SIGNIFICANT: tr("sig_significant", lang), NOT_SIGNIFICANT: tr("sig_ns", lang),
+            LOW_N: tr("sig_low_n", lang), NO_COMPARE: tr("sig_no_compare", lang)}.get(status, "")
+
+
+def delta_class(comparison, higher_is_better=True):
+    """Цвет дельты: зелёный/красный только для значимых изменений, иначе приглушённый серый."""
+    if comparison is None or comparison.status != SIGNIFICANT or comparison.delta is None or comparison.delta == 0:
+        return "muted"
+    good = (comparison.delta > 0) == higher_is_better
+    return "good" if good else "bad"
+
+
+def delta_html(delta_text, comparison, lang, higher_is_better=True, css="kpi-delta"):
+    """Строка «+0,3 · значимое изменение» с нужным цветом."""
+    if comparison is None or comparison.status == NO_COMPARE:
+        return f'<div class="{css} muted"><span class="sig">{tr("sig_no_compare", lang)}</span></div>'
+    cls = delta_class(comparison, higher_is_better)
+    if comparison.status == LOW_N:
+        return f'<div class="{css} muted">{delta_text}<span class="sig">{sig_label(comparison.status, lang)}</span></div>'
+    return f'<div class="{css} {cls}">{delta_text}<span class="sig">{sig_label(comparison.status, lang)}</span></div>'
+
+
 def kpi_row(items):
+    """items: список dict(label, value, suffix, cls, delta_html, foot)."""
     st.markdown(
         '<div class="kpi-row">' + "".join(
-            f'''<div class="kpi-card {cls}">
-                  <div class="kpi-label">{label}</div>
-                  <div class="kpi-value">{value}<small>{suffix}</small></div>
-                  <div class="kpi-foot">{foot}</div>
+            f'''<div class="kpi-card {it.get("cls", "")}">
+                  <div class="kpi-label">{it["label"]}</div>
+                  <div class="kpi-value">{it["value"]}<small>{it.get("suffix", "")}</small></div>
+                  {it.get("delta_html", "")}
+                  <div class="kpi-foot">{it.get("foot", "")}</div>
                 </div>'''
-            for label, value, suffix, cls, foot in items
+            for it in items
+        ) + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def delta_line(prefix, value_text, delta_text, comparison, lang, higher_is_better=True):
+    """Строка под заголовком вопроса: «Средний балл: 3,3 · −0,1 · в пределах погрешности»."""
+    if comparison is None or comparison.status == NO_COMPARE:
+        tail = f'<span class="sig">{tr("sig_no_compare", lang)}</span>'
+    else:
+        cls = "muted" if comparison.status == LOW_N else delta_class(comparison, higher_is_better)
+        tail = f'<span class="d {cls}">{delta_text}</span><span class="sig">{sig_label(comparison.status, lang)}</span>'
+    st.markdown(f'<div class="delta-line">{prefix}: <b>{value_text}</b>{tail}</div>', unsafe_allow_html=True)
+
+
+def counts_line(text):
+    st.markdown(f'<div class="counts-line">{text}</div>', unsafe_allow_html=True)
+
+
+INSIGHT_CLASS = {0: "neg", 1: "alert", 2: "polar", 3: "pos", 4: "neutral"}
+
+
+def insights_block(insights):
+    st.markdown(
+        '<div class="insights"><ul>' + "".join(
+            f'<li class="{INSIGHT_CLASS.get(i.severity, "neutral")}">{i.text}</li>' for i in insights
+        ) + "</ul></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def overview_cards(cards):
+    """cards: список dict(title, sub, value, suffix, delta_html, problem_label, problem_text, link, cls)."""
+    st.markdown(
+        '<div class="ov-row">' + "".join(
+            f'''<div class="ov-card {c.get("cls", "")}">
+                  <div class="ov-title">{c["title"]}</div>
+                  <div class="ov-sub">{c.get("sub", "")}</div>
+                  <div class="ov-label">{c["value_label"]}</div>
+                  <div class="ov-value">{c["value"]}<small>{c.get("suffix", "")}</small></div>
+                  {c.get("delta_html", "")}
+                  <div class="ov-label">{c["problem_label"]}</div>
+                  <div class="ov-problem">{c["problem_text"]}</div>
+                  <div class="ov-link">→ {c["link"]}</div>
+                </div>'''
+            for c in cards
         ) + "</div>",
         unsafe_allow_html=True,
     )

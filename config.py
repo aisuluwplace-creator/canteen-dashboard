@@ -27,6 +27,19 @@ PLOTLY_CFG = {"displayModeBar": False}
 # (одиночные ответы в «хвостовых» месяцах волной не считаются).
 MIN_WAVE_SIZE = 30
 
+# Статистическая значимость различий между периодами
+SIGNIFICANCE_ALPHA = 0.05       # порог p-value
+MIN_N_FOR_TEST = 30             # меньше ответов в любом из периодов — «мало данных для сравнения»
+
+# Пороги правил для блока «Ключевые выводы»
+NEGATIVE_SHARE_ALERT = 30.0     # доля негативных ответов (%), выше которой вопрос попадает в выводы
+POLARIZATION_PP = 3.0           # одновременный рост долей «1» и «5» больше чем на столько п.п. — поляризация
+INSIGHTS_MAX = 5                # максимум выводов в блоке
+
+# Оценки 1–5: какие считаем «довольными» и «недовольными»
+SATISFIED_SCORES = (4, 5)
+DISSATISFIED_SCORES = (1, 2)
+
 MONTHS = {
     "ru": ["", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
            "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"],
@@ -38,13 +51,24 @@ MONTHS = {
 
 
 # ============================================================== data model --
-@dataclass
+@dataclass(eq=False)   # eq=False — чтобы Question можно было использовать как ключ словаря
 class Question:
     col: int
     label: dict           # {"ru":.., "kz":.., "en":..}
     kind: str              # "numeric15" or "categorical"
     categories: list = field(default_factory=list)   # canonical category keys, required for "categorical"
     normalize: object = None                          # fn(raw_str) -> canonical category | None
+    # для categorical: варианты ответа, которые считаем негативным сигналом (например, «Да» на вопрос о проблемах).
+    # Пустой список — у вопроса нет негативного варианта, он не участвует в выборе проблемной метрики.
+    negative: list = field(default_factory=list)
+
+
+@dataclass
+class Gate:
+    """Условный блок анкеты: вопросы ниже показывались только тем, кто ответил `category` на вопрос `col`."""
+    col: int
+    category: str
+    block_col: int          # колонка, по которой считаем число ответивших на условный блок
 
 
 @dataclass
@@ -64,6 +88,13 @@ class SurveyConfig:
     questions: list
     comment_cols: list
     segment: object = None
+    # Главный вопрос удовлетворённости (колонка со шкалой 1–5). None — сводный балл:
+    # среднее всех оценок 1–5 по всем критериям раздела.
+    satisfaction_col: object = None
+    # Главная проблемная метрика (колонка). None — выбирается автоматически: вопрос с
+    # наибольшей долей негативных ответов (оценки 1–2 или негативный вариант ответа).
+    problem_col: object = None
+    gate: object = None     # Gate или None
 
 
 # ------------------------------------------------------------ normalizers --
@@ -140,9 +171,11 @@ CANTEEN = SurveyConfig(
         Question(14, {"ru": "Разнообразие меню", "kz": "Мәзірдің әртүрлілігі", "en": "Menu variety"}, "numeric15"),
         Question(15, {"ru": "Размер порций", "kz": "Порция көлемі", "en": "Portion size"}, "numeric15"),
         Question(17, {"ru": "Проблемы ЖКТ после еды", "kz": "Тамақтанғаннан кейінгі асқазан мәселелері", "en": "Digestive issues after eating"},
-                 "categorical", ["yes", "no"], yn_normalize),
+                 "categorical", ["yes", "no"], yn_normalize, negative=["yes"]),
     ],
     comment_cols=[18],
+    satisfaction_col=None,   # явного вопроса об общей удовлетворённости нет — сводный балл по всем критериям
+    problem_col=None,        # авто-выбор по доле негативных ответов
 )
 
 TRANSPORT = SurveyConfig(
@@ -160,6 +193,8 @@ TRANSPORT = SurveyConfig(
         Question(13, {"ru": "Соответствие расписанию", "kz": "Кестеге сәйкестік", "en": "Schedule adherence"}, "numeric15"),
     ],
     comment_cols=[14, 15],
+    satisfaction_col=None,   # явного вопроса об общей удовлетворённости нет — сводный балл по всем критериям
+    problem_col=None,        # авто-выбор по доле негативных ответов
 )
 
 DMS = SurveyConfig(
@@ -174,15 +209,21 @@ DMS = SurveyConfig(
                        "en": "Frequency of out-of-pocket payments"}, "categorical",
                  ["never", "rarely", "sometimes", "often", "always"],
                  prefix_normalize(["Никогда", "Редко", "Иногда", "Часто", "Всегда"],
-                                   ["never", "rarely", "sometimes", "often", "always"])),
+                                   ["never", "rarely", "sometimes", "often", "always"]),
+                 negative=["often", "always"]),
         Question(14, {"ru": "Удовлетворённость услугами", "kz": "Қызметке қанағаттану деңгейі", "en": "Satisfaction with services"}, "numeric15"),
         Question(15, {"ru": "Время ожидания услуги", "kz": "Қызметті күту уақыты", "en": "Waiting time for service"}, "numeric15"),
         Question(17, {"ru": "Откладывали лечение из-за лимитов", "kz": "Шектеулерге байланысты емдеуді кейінге қалдыру",
-                       "en": "Delayed treatment due to coverage limits"}, "categorical", ["yes", "no"], yn_normalize),
+                       "en": "Delayed treatment due to coverage limits"}, "categorical", ["yes", "no"], yn_normalize,
+                 negative=["yes"]),
         Question(19, {"ru": "Обращались за ночной помощью", "kz": "Түнгі көмекке жүгіну", "en": "Used night-time care"},
                  "categorical", ["yes", "no"], yn_normalize),
     ],
     comment_cols=[21],
+    satisfaction_col=14,     # «Насколько вы удовлетворены предоставляемыми услугами медстраховки?»
+    problem_col=17,          # «Откладывали лечение из-за лимитов» — доля «Да»
+    # блок о качестве услуг заполняли только те, кто пользовался страховкой за 12 мес.
+    gate=Gate(col=7, category="yes", block_col=14),
 )
 
 SURVEYS = [CANTEEN, TRANSPORT, DMS]

@@ -83,6 +83,56 @@ T = {
               "not a full NLP model, and can misread sarcasm or complex phrasing — later iterations could refine "
               "the wordlist or plug in a more accurate model.",
     },
+    # --- KPI по результату ---
+    "kpi_mean": {"ru": "Средний балл удовлетворённости", "kz": "Қанағаттанудың орташа балы", "en": "Average satisfaction score"},
+    "kpi_mean_foot_composite": {"ru": "среднее всех оценок 1–5 по критериям раздела",
+                                "kz": "бөлімнің барлық критерийлері бойынша 1–5 бағаларының орташасы",
+                                "en": "mean of all 1–5 scores across the section's criteria"},
+    "kpi_mean_foot_single": {"ru": "по вопросу «{q}»", "kz": "«{q}» сұрағы бойынша", "en": "question “{q}”"},
+    "kpi_pos": {"ru": "Доля довольных", "kz": "Қанағаттанғандар үлесі", "en": "Satisfied share"},
+    "kpi_pos_foot": {"ru": "оценки 4–5 среди всех оценок", "kz": "барлық бағалар ішіндегі 4–5", "en": "scores 4–5 among all scores"},
+    "kpi_neg": {"ru": "Доля недовольных", "kz": "Қанағаттанбағандар үлесі", "en": "Dissatisfied share"},
+    "kpi_neg_foot": {"ru": "оценки 1–2 среди всех оценок", "kz": "барлық бағалар ішіндегі 1–2", "en": "scores 1–2 among all scores"},
+    "kpi_problem_foot_cat": {"ru": "доля ответов «{c}»", "kz": "«{c}» жауаптарының үлесі", "en": "share of “{c}” answers"},
+    "kpi_problem_foot_scale": {"ru": "доля низких оценок (1–2)", "kz": "төмен бағалардың үлесі (1–2)", "en": "share of low scores (1–2)"},
+    "kpi_no_data": {"ru": "нет ответов за выбранный период", "kz": "таңдалған кезеңде жауап жоқ", "en": "no answers for the selected period"},
+    "sig_significant": {"ru": "значимое изменение", "kz": "маңызды өзгеріс", "en": "significant change"},
+    "sig_ns": {"ru": "в пределах погрешности", "kz": "қателік шегінде", "en": "within margin of error"},
+    "sig_low_n": {"ru": "мало данных для сравнения", "kz": "салыстыруға деректер аз", "en": "too little data to compare"},
+    "sig_no_compare": {"ru": "нет периода сравнения", "kz": "салыстыру кезеңі жоқ", "en": "no comparison period"},
+    "counts_line": {"ru": "Анкет: всего {total} · {cur_p} — {cur} · {cmp_p} — {cmp}",
+                    "kz": "Анкеталар: барлығы {total} · {cur_p} — {cur} · {cmp_p} — {cmp}",
+                    "en": "Responses: total {total} · {cur_p} — {cur} · {cmp_p} — {cmp}"},
+    "gate_note": {
+        "ru": "За {cur_p} анкету заполнили {total} чел. Вопросы о качестве услуг задавались только тем, кто ответил "
+              "«{ans}» на вопрос «{gate_q}» — таких {gate} чел., из них на вопросы ответили {block}. "
+              "Поэтому число ответов по этим вопросам меньше числа анкет.",
+        "kz": "{cur_p} кезеңінде анкетаны {total} адам толтырды. Қызмет сапасы туралы сұрақтар «{gate_q}» сұрағына "
+              "«{ans}» деп жауап бергендерге ғана қойылды — олар {gate} адам, оның {block}-і сұрақтарға жауап берді. "
+              "Сондықтан бұл сұрақтар бойынша жауап саны анкета санынан аз.",
+        "en": "In {cur_p}, {total} people filled in the survey. Service-quality questions were shown only to those who "
+              "answered “{ans}” to “{gate_q}” — {gate} people, of whom {block} answered. "
+              "That is why these questions have fewer answers than there are responses.",
+    },
+    "insights_title": {"ru": "Ключевые выводы", "kz": "Негізгі тұжырымдар", "en": "Key takeaways"},
+    "insights_note": {"ru": "Сформированы автоматически по правилам из данных за выбранные периоды; значимость — при p < {alpha}",
+                      "kz": "Таңдалған кезеңдердің деректері бойынша ережелермен автоматты түрде құрылды; маңыздылық — p < {alpha}",
+                      "en": "Generated automatically by rules from the selected periods' data; significance at p < {alpha}"},
+    "q_mean_line": {"ru": "Средний балл", "kz": "Орташа балл", "en": "Average score"},
+    "q_share_line": {"ru": "Доля ответов «{c}»", "kz": "«{c}» жауаптарының үлесі", "en": "Share of “{c}”"},
+    # --- вкладка «Обзор» ---
+    "tab_overview": {"ru": "Обзор", "kz": "Шолу", "en": "Overview"},
+    "overview_title": {"ru": "Сводка по разделам", "kz": "Бөлімдер бойынша қорытынды", "en": "Summary by section"},
+    "overview_note": {"ru": "Последняя волна опроса в сравнении с предыдущей волной. Подробности — во вкладках разделов",
+                      "kz": "Сауалнаманың соңғы толқыны алдыңғы толқынмен салыстырылады. Толығырақ — бөлімдер қойындыларында",
+                      "en": "Latest survey wave versus the previous wave. Details are in the section tabs"},
+    "overview_mean": {"ru": "Средний балл", "kz": "Орташа балл", "en": "Average score"},
+    "overview_vs": {"ru": "к {period}", "kz": "{period} кезеңіне қатысты", "en": "vs. {period}"},
+    "overview_problem": {"ru": "Главная проблема", "kz": "Негізгі мәселе", "en": "Main issue"},
+    "overview_details": {"ru": "Подробнее — во вкладке «{tab}»", "kz": "Толығырақ — «{tab}» қойындысында", "en": "Details — in the “{tab}” tab"},
+    "overview_no_data": {"ru": "Недостаточно данных", "kz": "Деректер жеткіліксіз", "en": "Not enough data"},
+    "or_sep": {"ru": " или ", "kz": " немесе ", "en": " or "},
+    "overview_responses": {"ru": "{n} анкет", "kz": "{n} анкета", "en": "{n} responses"},
 }
 
 

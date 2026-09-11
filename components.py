@@ -81,6 +81,11 @@ def inject_css():
           .yn-card .yn-label{{ font-size:13px; color:{INK_2}; }}
           .yn-card .yn-cmp{{ font-size:12px; color:{INK_MUTED}; }}
           .scale-note{{ font-size:11.5px; color:{INK_MUTED}; margin:-4px 0 4px; }}
+          .pill-wrap{{ display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 10px; }}
+          .pill{{ background:{SURFACE}; border:1px solid {BORDER}; border-radius:999px; padding:3px 10px; font-size:12px; color:{INK_2}; }}
+          .pill b{{ color:{INK}; margin-left:4px; }}
+          .pill.pos{{ border-color:{POS_SENT}; }}
+          .pill.neg{{ border-color:{NEG_SENT}; }}
           .counts-line{{ font-size:12px; color:{INK_MUTED}; margin:-4px 0 10px 2px; }}
           .insights{{ background:{SURFACE}; border:1px solid {BORDER}; border-left:4px solid {NAVY}; border-radius:12px;
                       box-shadow:{CARD_SHADOW}; padding:14px 18px 10px; margin:4px 0 18px; }}
@@ -288,3 +293,14 @@ def yes_no_card(share_text, yes_label, delta_text, comparison, lang, cmp_text=""
 
 def scale_note(text):
     st.markdown(f'<div class="scale-note">{text}</div>', unsafe_allow_html=True)
+
+
+def short_answer_pills(items):
+    """items: [(текст, число, класс тональности)] → «Всё хорошо ×12»."""
+    st.markdown(
+        '<div class="pill-wrap">' + "".join(
+            f'<span class="pill {cls}">{text}<b>×{n}</b></span>' if n > 1 else f'<span class="pill {cls}">{text}</span>'
+            for text, n, cls in items
+        ) + "</div>",
+        unsafe_allow_html=True,
+    )

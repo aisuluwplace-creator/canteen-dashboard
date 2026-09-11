@@ -9,13 +9,17 @@ from config import BASE_DIR, MIN_WAVE_SIZE, MONTHS
 from i18n import tr
 
 
-@st.cache_data
-def load_survey(file_glob: str) -> pd.DataFrame:
+def load_survey_plain(file_glob: str) -> pd.DataFrame:
+    """Чтение файла опроса без кэша Streamlit — для офлайн-скриптов."""
     matches = glob.glob(str(BASE_DIR / file_glob))
     if not matches:
         return pd.DataFrame()
-    df = pd.read_excel(matches[0], sheet_name=0)
-    return df
+    return pd.read_excel(matches[0], sheet_name=0)
+
+
+@st.cache_data
+def load_survey(file_glob: str) -> pd.DataFrame:
+    return load_survey_plain(file_glob)
 
 
 def prepare(df: pd.DataFrame, date_col: int) -> pd.DataFrame:

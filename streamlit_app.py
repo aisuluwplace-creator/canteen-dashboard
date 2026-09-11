@@ -1,12 +1,14 @@
 import pandas as pd
 import streamlit as st
 
-from charts import render_grouped_bar, render_scale_stacked, render_trend_bar
-from comments import clean_comments, sentiment_of
+from charts import render_grouped_bar, render_scale_stacked, render_topics_bar, render_trend_bar
+from comments import annotate, collect_comments, group_short_comments, load_model_metrics, load_scored, split_feed
 from components import (counts_line, delta_html, delta_line, hero, inject_css, insights_block, kpi_row,
-                        legend_pills, overview_cards, scale_note, section_head, with_no_change, yes_no_card)
-from config import (COMPARE_COLOR, CURRENT_COLOR, MUTED, PLOTLY_CFG, SCALE_LABELS, SIGNIFICANCE_ALPHA, SURVEYS,
-                    SurveyConfig, cat_label)
+                        legend_pills, overview_cards, scale_note, section_head, short_answer_pills, with_no_change,
+                        yes_no_card)
+from config import (ANONYMITY_MIN_GROUP, COMPARE_COLOR, CURRENT_COLOR, MAX_FEED_COMMENTS, MIN_COMMENT_LEN, MUTED,
+                    OTHER_TOPIC, PLOTLY_CFG, SCALE_LABELS, SIGNIFICANCE_ALPHA, SURVEYS, TOPICS, SurveyConfig,
+                    cat_label, topic_label)
 from data import (data_updated_at, default_periods, describe_periods, last_wave, load_survey, period_label,
                   period_options, prepare, question_full_text, waves)
 from formatting import DASH, fmt_date, fmt_int, fmt_num, fmt_pct, fmt_pp, fmt_signed
@@ -79,6 +81,88 @@ def result_kpis(cfg, an, lang, cmp_short):
     kpi_row(items)
 
 
+SENT_ORDER = ["pos", "neu", "neg"]   # Позитивные · Нейтральные · Негативные — везде в этом порядке
+
+
+@st.cache_data
+def scored_cache():
+    return load_scored()
+
+
+def render_comments(cfg, lang, df_cur, df_cmp, cols, cur_short, cmp_short):
+    scored = scored_cache()
+    metrics = load_model_metrics()
+    use_model = scored is not None
+
+    st.write("")
+    section_head(tr("sec_comments_title", lang),
+                 tr("sec_comments_note_model", lang) if use_model else tr("sec_comments_note", lang))
+    st.markdown(f'<div class="lang-note">{tr("comments_language_note", lang)}</div>', unsafe_allow_html=True)
+    if use_model and metrics and metrics.get("sentiment"):
+        m = metrics["sentiment"]
+        st.caption(tr("accuracy_line", lang, acc=fmt_pct(m["accuracy"] * 100, 0, lang), n=fmt_int(m["n"], lang)))
+
+    cur = annotate(collect_comments(df_cur, cols, cfg.comment_cols), cfg.key, scored)
+    cmp_ = annotate(collect_comments(df_cmp, cols, cfg.comment_cols), cfg.key, scored)
+    sent_names = {k: tr(f"sent_{k}", lang) for k in SENT_ORDER}
+
+    def shares(items):
+        n = len(items)
+        return {k: (sum(1 for c in items if c["sentiment"] == k) / n * 100 if n else 0) for k in SENT_ORDER}
+
+    cur_sent, cmp_sent = shares(cur), shares(cmp_)
+
+    # темы, встречающиеся в текущем периоде (в порядке конфига, «Прочее» — последним)
+    topic_keys = [k for k, _, _ in TOPICS.get(cfg.key, [])] + [OTHER_TOPIC]
+    present = [k for k in topic_keys if any(c["topic"] == k for c in cur)] if use_model else []
+
+    col_s1, col_s2 = st.columns([1, 1.4])
+    with col_s1:
+        with st.container(border=True):
+            st.markdown(f"**{tr('sentiment_title', lang)}**")
+            st.caption(tr("sentiment_caption", lang, cur=fmt_int(len(cur), lang), cur_p=cur_short,
+                          cmp=fmt_int(len(cmp_), lang), cmp_p=cmp_short))
+            fig = render_grouped_bar([sent_names[k] for k in SENT_ORDER],
+                                     [cur_sent[k] for k in SENT_ORDER], [cmp_sent[k] for k in SENT_ORDER],
+                                     cur_short, cmp_short, lang)
+            st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+    with col_s2:
+        if present:
+            with st.container(border=True):
+                st.markdown(f"**{tr('topics_title', lang)}**")
+                st.caption(tr("topics_note", lang, period=cur_short))
+                labels = [topic_label(cfg.key, k, lang) for k in present]
+                counts = {sk: [sum(1 for c in cur if c["topic"] == tk and c["sentiment"] == sk) for tk in present]
+                          for sk in SENT_ORDER}
+                st.plotly_chart(render_topics_bar(labels, counts, sent_names, lang), width="stretch", config=PLOTLY_CFG)
+
+    # --- лента комментариев ---
+    st.markdown(f"**{tr('comments_current_title', lang, period=cur_short)}**")
+    selected_topic = None
+    if present:
+        options = [None] + present
+        selected_topic = st.selectbox(tr("topic_filter", lang), options,
+                                      format_func=lambda k: tr("topic_all", lang) if k is None else topic_label(cfg.key, k, lang),
+                                      key=f"{cfg.key}_topic_{lang}")
+    feed = [c for c in cur if selected_topic is None or c["topic"] == selected_topic]
+    st.caption(tr("feed_note", lang, n=fmt_int(MIN_COMMENT_LEN, lang)))
+
+    buckets = {k: [c["text"] for c in feed if c["sentiment"] == k] for k in SENT_ORDER}
+    tabs = st.tabs([f"{sent_names[k]} ({fmt_int(len(buckets[k]), lang)})" for k in SENT_ORDER])
+    for tab, key in zip(tabs, SENT_ORDER):
+        with tab:
+            substantive, short = split_feed(buckets[key])
+            if not substantive and not short:
+                st.caption(tr("no_comments", lang))
+                continue
+            for q in substantive[:MAX_FEED_COMMENTS]:
+                st.markdown(f'<div class="quote-card {key if key != "neu" else ""}">{q}</div>', unsafe_allow_html=True)
+            grouped = group_short_comments(short)
+            if grouped:
+                st.caption(tr("short_title", lang))
+                short_answer_pills([(t, n, key if key != "neu" else "") for t, n in grouped[:30]])
+
+
 def render_survey(cfg: SurveyConfig, lang: str):
     df = load_prepared(cfg)
     if df.empty:
@@ -117,6 +201,11 @@ def render_survey(cfg: SurveyConfig, lang: str):
     cur_periods, cmp_periods = set(cur_sel), set(cmp_sel)
     df_cur = df[df["_period"].isin(cur_periods)]
     df_cmp = df[df["_period"].isin(cmp_periods)]
+
+    # анонимность: для узкого сегмента (меньше ANONYMITY_MIN_GROUP анкет в периоде) данные не показываем
+    if seg_selected and any(0 < len(d) < ANONYMITY_MIN_GROUP for d in (df_cur, df_cmp)):
+        st.warning(tr("anonymity_msg", lang, n=fmt_int(ANONYMITY_MIN_GROUP, lang)), icon="🔒")
+        return
 
     # описания периодов для подписей: «Последняя волна: Январь 2026» / «Сравнение: Ноябрь 2025»
     cur_desc = describe_periods(cur_sel, lw, lang, role="current")
@@ -197,55 +286,7 @@ def render_survey(cfg: SurveyConfig, lang: str):
                 st.caption(tr("answered_caption", lang, cur=fmt_int(sc.n, lang), cur_p=cur_short,
                               cmp=fmt_int(sm.n, lang), cmp_p=cmp_short))
 
-    st.write("")
-    section_head(tr("sec_comments_title", lang), tr("sec_comments_note", lang))
-    st.markdown(f'<div class="lang-note">{tr("comments_language_note", lang)}</div>', unsafe_allow_html=True)
-    all_comments_cur = []
-    for c in cfg.comment_cols:
-        all_comments_cur += clean_comments(df_cur[cols[c]])
-    all_comments_cmp = []
-    for c in cfg.comment_cols:
-        all_comments_cmp += clean_comments(df_cmp[cols[c]])
-
-    SENT_ORDER = ["pos", "neu", "neg"]   # Позитивные · Нейтральные · Негативные — везде в этом порядке
-    sent_names = {k: tr(f"sent_{k}", lang) for k in SENT_ORDER}
-
-    def sentiment_shares(comments):
-        if not comments:
-            return {k: 0 for k in SENT_ORDER}
-        tags = [sentiment_of(c) for c in comments]
-        n = len(tags)
-        return {k: tags.count(k) / n * 100 for k in SENT_ORDER}
-
-    cur_sent = sentiment_shares(all_comments_cur)
-    cmp_sent = sentiment_shares(all_comments_cmp)
-
-    col_s1, col_s2 = st.columns([1, 1.4])
-    with col_s1:
-        with st.container(border=True):
-            st.markdown(f"**{tr('sentiment_title', lang)}**")
-            st.caption(tr("sentiment_caption", lang, cur=fmt_int(len(all_comments_cur), lang), cur_p=cur_short,
-                          cmp=fmt_int(len(all_comments_cmp), lang), cmp_p=cmp_short))
-            fig = render_grouped_bar(
-                [sent_names[k] for k in SENT_ORDER],
-                [cur_sent[k] for k in SENT_ORDER], [cmp_sent[k] for k in SENT_ORDER],
-                cur_short, cmp_short, lang,
-            )
-            st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
-
-    with col_s2:
-        st.markdown(f"**{tr('comments_current_title', lang, period=cur_short)}**")
-        buckets = {k: [] for k in SENT_ORDER}
-        for c in all_comments_cur:
-            buckets[sentiment_of(c)].append(c)
-        tabs = st.tabs([f"{sent_names[k]} ({fmt_int(len(buckets[k]), lang)})" for k in SENT_ORDER])
-        for tab, key in zip(tabs, SENT_ORDER):
-            with tab:
-                sample = buckets[key][:8]
-                if not sample:
-                    st.caption(tr("no_comments", lang))
-                for q in sample:
-                    st.markdown(f'<div class="quote-card {key if key != "neu" else ""}">{q}</div>', unsafe_allow_html=True)
+    render_comments(cfg, lang, df_cur, df_cmp, cols, cur_short, cmp_short)
 
     # --- о данных: динамика числа ответов по месяцам (без дыр в оси) ---
     st.write("")
@@ -333,4 +374,6 @@ for tab, cfg in zip(tabs[1:], SURVEYS):
         render_survey(cfg, LANG)
 
 st.divider()
-st.markdown(f'<div class="foot-note">{tr("footer_note", LANG)}</div>', unsafe_allow_html=True)
+_metrics = load_model_metrics()
+_footer_key = "footer_note_model" if (scored_cache() is not None and _metrics and _metrics.get("sentiment")) else "footer_note"
+st.markdown(f'<div class="foot-note">{tr(_footer_key, LANG)}</div>', unsafe_allow_html=True)

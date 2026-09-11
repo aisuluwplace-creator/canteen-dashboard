@@ -144,6 +144,36 @@ T = {
     "yn_answered_yes": {"ru": "ответили «Да»", "kz": "«Иә» деп жауап берді", "en": "answered “Yes”"},
     "yn_compare": {"ru": "{cmp_p}: {v}", "kz": "{cmp_p}: {v}", "en": "{cmp_p}: {v}"},
     "question_help": {"ru": "Полный текст вопроса", "kz": "Сұрақтың толық мәтіні", "en": "Full question text"},
+    # --- комментарии: темы, дубли, анонимность ---
+    "sec_comments_note_model": {
+        "ru": "Пустые и малоинформативные ответы исключены; тональность и темы определены языковой моделью (офлайн-расчёт)",
+        "kz": "Бос және ақпараты аз жауаптар алынып тасталды; көңіл-күй мен тақырыптар тілдік модельмен анықталды (офлайн есептеу)",
+        "en": "Empty and uninformative answers are excluded; sentiment and topics are assigned by a language model (offline run)",
+    },
+    "accuracy_line": {"ru": "Точность определения тональности: {acc} на ручной разметке {n} комментариев",
+                      "kz": "Көңіл-күйді анықтау дәлдігі: {n} пікірдің қолмен таңбалауында {acc}",
+                      "en": "Sentiment accuracy: {acc} on a manually labelled sample of {n} comments"},
+    "topics_title": {"ru": "О чём пишут", "kz": "Не туралы жазады", "en": "What people write about"},
+    "topics_note": {"ru": "Число комментариев по темам за {period}, цвет — тональность",
+                    "kz": "{period} кезеңіндегі тақырыптар бойынша пікірлер саны, түс — көңіл-күй",
+                    "en": "Number of comments by topic for {period}, colour — sentiment"},
+    "topic_filter": {"ru": "Тема комментариев", "kz": "Пікірлер тақырыбы", "en": "Comment topic"},
+    "topic_all": {"ru": "Все темы", "kz": "Барлық тақырыптар", "en": "All topics"},
+    "feed_note": {"ru": "Показаны содержательные ответы (от {n} символов), самые подробные — первыми",
+                  "kz": "Мазмұнды жауаптар көрсетілген ({n} таңбадан), ең толығы — бірінші",
+                  "en": "Substantive answers shown (from {n} characters), most detailed first"},
+    "short_title": {"ru": "Короткие ответы", "kz": "Қысқа жауаптар", "en": "Short answers"},
+    "anonymity_msg": {"ru": "Недостаточно ответов для сохранения анонимности: в выбранной группе меньше {n} анкет",
+                      "kz": "Анонимдікті сақтау үшін жауап жеткіліксіз: таңдалған топта {n} анкетадан аз",
+                      "en": "Not enough responses to preserve anonymity: fewer than {n} responses in the selected group"},
+    "footer_note_model": {
+        "ru": "Прототип для внутреннего обсуждения. Тональность и темы комментариев рассчитаны языковыми моделями офлайн "
+              "(scripts/score_comments.py); качество проверено на ручной разметке — см. строку точности в блоке комментариев.",
+        "kz": "Ішкі талқылауға арналған прототип. Пікірлердің көңіл-күйі мен тақырыптары тілдік модельдермен офлайн есептелген "
+              "(scripts/score_comments.py); сапасы қолмен таңбалауда тексерілді — пікірлер блогындағы дәлдік жолын қараңыз.",
+        "en": "Prototype for internal discussion. Comment sentiment and topics are computed offline by language models "
+              "(scripts/score_comments.py); quality was checked against a manual sample — see the accuracy line in the comments block.",
+    },
     "or_sep": {"ru": " или ", "kz": " немесе ", "en": " or "},
     "overview_responses": {"ru": "{n} анкет", "kz": "{n} анкета", "en": "{n} responses"},
 }

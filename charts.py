@@ -93,3 +93,34 @@ def render_scale_stacked(cur_shares, cmp_shares, cur_label, cmp_label, lang="ru"
         showlegend=True, uniformtext=dict(minsize=9, mode="hide"),
     )
     return fig
+
+
+def render_topics_bar(labels, counts_by_sent, sent_names, lang="ru"):
+    """Горизонтальная стековая полоса: комментарии по темам с разбивкой по тональности."""
+    from config import NEG_SENT, NEU_SENT, POS_SENT
+    colors = {"pos": POS_SENT, "neu": NEU_SENT, "neg": NEG_SENT}
+    fig = go.Figure()
+    totals = [sum(counts_by_sent[k][i] for k in counts_by_sent) for i in range(len(labels))]
+    for key in ("pos", "neu", "neg"):
+        vals = counts_by_sent[key]
+        fig.add_trace(go.Bar(
+            y=labels, x=vals, orientation="h", name=sent_names[key],
+            marker=dict(color=colors[key], line=dict(width=0)),
+            hovertemplate="%{y}<br>" + sent_names[key] + ": <b>%{x}</b><extra></extra>",
+        ))
+    # итог справа от полосы
+    fig.add_trace(go.Scatter(
+        y=labels, x=totals, mode="text", text=[fmt_int(t, lang) for t in totals], textposition="middle right",
+        textfont=dict(color=CHART_TEXT, size=11.5), hoverinfo="skip", showlegend=False, cliponaxis=False,
+    ))
+    base_layout(
+        fig, lang,
+        barmode="stack", height=max(180, 34 * len(labels) + 70), margin=dict(l=10, r=40, t=8, b=8), bargap=0.32,
+        xaxis=dict(showgrid=True, gridcolor="rgba(20,27,46,0.06)", color=CHART_TEXT, zeroline=False,
+                   range=[0, max(totals + [1]) * 1.12]),
+        yaxis=dict(showgrid=False, color=CHART_TEXT, autorange="reversed", tickfont=dict(size=11.5)),
+        legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="left", x=0, font=dict(size=11),
+                    itemclick=False, itemdoubleclick=False, traceorder="normal"),
+        showlegend=True,
+    )
+    return fig

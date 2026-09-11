@@ -36,12 +36,14 @@ def inject_css():
             box-shadow:0 14px 30px -18px rgba(16,26,66,0.55);
           }}
           .hero .kicker{{ font-size:11.5px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:{SKY}; margin-bottom:8px; }}
-          .hero-title{{ display:flex; align-items:center; gap:14px; }}
-          .hero-title .tri{{ width:0; height:0; flex:none; border-top:15px solid transparent; border-bottom:15px solid transparent; }}
-          .hero-title .tri.left{{ border-left:20px solid {SKY}; }}
-          .hero-title .tri.right{{ border-right:20px solid {SKY}; opacity:0.55; }}
           .hero-title h1{{ margin:0; color:#ffffff; font-size:32px; font-weight:800; letter-spacing:-0.01em; }}
           .hero .sub{{ color:#c7d3f4; font-size:13.5px; margin-top:8px; max-width:56ch; }}
+          .hero-meta{{ display:flex; flex-direction:column; gap:10px; align-items:flex-end; text-align:right; flex:none; }}
+          .hero-meta .meta-item{{ background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.14);
+                                  border-radius:10px; padding:8px 14px; min-width:220px; }}
+          .hero-meta .meta-label{{ font-size:10.5px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:{SKY}; }}
+          .hero-meta .meta-value{{ font-family:"Manrope",sans-serif; font-size:15px; font-weight:700; color:#ffffff; margin-top:2px; }}
+          @media (max-width:760px){{ .hero-meta{{ align-items:flex-start; text-align:left; }} }}
           .sec-head{{ display:flex; align-items:baseline; gap:10px; margin:6px 0 4px; }}
           .sec-head .bar{{ width:5px; height:20px; border-radius:3px; background:{NAVY}; flex:none; }}
           .sec-head h2{{ font-size:18px; font-weight:800; color:{INK}; margin:0; }}
@@ -55,6 +57,7 @@ def inject_css():
           .kpi-card.good{{ border-left-color:{GOOD}; }}
           .kpi-card.flag{{ border-left-color:{CRITICAL}; }}
           .kpi-card.compare{{ border-left-color:{COMPARE_COLOR}; }}
+          .kpi-card.neutral{{ border-left-color:{INK_MUTED}; }}
           .kpi-card .kpi-label{{ font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:{INK_MUTED}; line-height:1.4; min-height:28px; }}
           .kpi-card .kpi-value{{ font-family:"Manrope",sans-serif; font-size:28px; font-weight:800; color:{INK}; letter-spacing:-0.01em; }}
           .kpi-card .kpi-value small{{ font-size:13px; font-weight:600; color:{INK_MUTED}; margin-left:2px; }}
@@ -62,6 +65,7 @@ def inject_css():
           .kpi-card.flag .kpi-value{{ color:{CRITICAL}; }}
           .kpi-card.good .kpi-value{{ color:{GOOD}; }}
           .kpi-card.compare .kpi-value{{ color:{COMPARE_COLOR}; }}
+          .kpi-card.neutral .kpi-value{{ color:{INK_2}; }}
           div[data-testid="stVerticalBlockBorderWrapper"]{{ background:{SURFACE}; border:1px solid {BORDER} !important; border-radius:14px !important; box-shadow:{CARD_SHADOW}; }}
           div[data-testid="stVerticalBlockBorderWrapper"] > div {{ border-radius:14px; }}
           .quote-card{{
@@ -85,18 +89,25 @@ def inject_css():
     )
 
 
-def hero(lang):
+def hero(lang, updated_text, last_wave_text):
+    """Баннер: заголовок слева, дата обновления данных и последняя волна — справа."""
     st.markdown(
         textwrap.dedent(f"""
         <div class="hero">
           <div>
             <div class="kicker">{tr('hero_kicker', lang)}</div>
-            <div class="hero-title">
-              <span class="tri left"></span>
-              <h1>{tr('hero_title', lang)}</h1>
-              <span class="tri right"></span>
-            </div>
+            <div class="hero-title"><h1>{tr('hero_title', lang)}</h1></div>
             <div class="sub">{tr('hero_sub', lang)}</div>
+          </div>
+          <div class="hero-meta">
+            <div class="meta-item">
+              <div class="meta-label">{tr('hero_updated', lang)}</div>
+              <div class="meta-value">{updated_text}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">{tr('hero_last_wave', lang)}</div>
+              <div class="meta-value">{last_wave_text}</div>
+            </div>
           </div>
         </div>
         """),
@@ -122,5 +133,14 @@ def kpi_row(items):
                 </div>'''
             for label, value, suffix, cls, foot in items
         ) + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def legend_pills(items):
+    """Подписи-легенда: [(цвет, текст), ...]."""
+    st.markdown(
+        "".join(f'<span class="legend-pill"><span class="sw" style="background:{color}"></span>{text}</span>'
+                for color, text in items),
         unsafe_allow_html=True,
     )

@@ -75,6 +75,12 @@ def inject_css():
           .delta-line .d.bad{{ color:{CRITICAL}; }}
           .delta-line .d.muted{{ color:{INK_MUTED}; font-weight:600; }}
           .delta-line .sig{{ font-size:11px; color:{INK_MUTED}; }}
+          .yn-card{{ display:flex; flex-direction:column; gap:6px; padding:6px 2px 2px; }}
+          .yn-card .yn-value{{ font-family:"Manrope",sans-serif; font-size:44px; font-weight:800; color:{INK}; line-height:1; letter-spacing:-0.02em; }}
+          .yn-card .yn-value.flag{{ color:{CRITICAL}; }}
+          .yn-card .yn-label{{ font-size:13px; color:{INK_2}; }}
+          .yn-card .yn-cmp{{ font-size:12px; color:{INK_MUTED}; }}
+          .scale-note{{ font-size:11.5px; color:{INK_MUTED}; margin:-4px 0 4px; }}
           .counts-line{{ font-size:12px; color:{INK_MUTED}; margin:-4px 0 10px 2px; }}
           .insights{{ background:{SURFACE}; border:1px solid {BORDER}; border-left:4px solid {NAVY}; border-radius:12px;
                       box-shadow:{CARD_SHADOW}; padding:14px 18px 10px; margin:4px 0 18px; }}
@@ -254,3 +260,31 @@ def legend_pills(items):
                 for color, text in items),
         unsafe_allow_html=True,
     )
+
+
+def with_no_change(delta_text, comparison, lang):
+    """Если дельта округляется до нуля — пишем «без изменений» вместо «0 п.п.»."""
+    if comparison is not None and comparison.delta is not None and comparison.status not in (NO_COMPARE,):
+        stripped = delta_text.replace("+", "").replace("−", "").replace("\u00a0", " ")
+        if stripped.split(" ")[0].replace(",", ".").rstrip("%") in ("0", "0.0", "0.00"):
+            return tr("no_change", lang)
+    return delta_text
+
+
+def yes_no_card(share_text, yes_label, delta_text, comparison, lang, cmp_text="", flag=False):
+    """Компактная карточка для вопроса «Да/Нет»: крупная доля «Да», дельта и метка значимости."""
+    dh = delta_html(with_no_change(delta_text, comparison, lang), comparison, lang, higher_is_better=not flag,
+                    css="kpi-delta")
+    st.markdown(
+        f'''<div class="yn-card">
+              <div class="yn-value {"flag" if flag and comparison is not None and comparison.status == SIGNIFICANT and (comparison.delta or 0) > 0 else ""}">{share_text}</div>
+              <div class="yn-label">{yes_label}</div>
+              {dh}
+              <div class="yn-cmp">{cmp_text}</div>
+            </div>''',
+        unsafe_allow_html=True,
+    )
+
+
+def scale_note(text):
+    st.markdown(f'<div class="scale-note">{text}</div>', unsafe_allow_html=True)

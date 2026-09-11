@@ -1,5 +1,6 @@
 """Загрузка данных опросов и работа с периодами и волнами."""
 import glob
+import re
 
 import pandas as pd
 import streamlit as st
@@ -81,3 +82,16 @@ def describe_periods(selected, lw, lang, role="current"):
     if role == "compare":
         return tr("compare_desc", lang, period=names)
     return names
+
+
+_LANG_SPLIT = re.compile(r"\b(RU|KZ|EN)\s*:\s*", re.I)
+
+
+def question_full_text(header, lang="ru"):
+    """Полный текст вопроса на нужном языке из трёхъязычного заголовка колонки «RU: … KZ: … EN: …»."""
+    h = re.sub(r"[\u00a0\s]+", " ", str(header)).strip()
+    parts = _LANG_SPLIT.split(h)
+    if len(parts) >= 3:
+        found = {parts[i].lower(): parts[i + 1].strip(" ;,") for i in range(1, len(parts) - 1, 2)}
+        return found.get(lang) or found.get("ru") or h
+    return h

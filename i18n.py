@@ -32,9 +32,12 @@ T = {
                         "en": "Number of completed responses per month across the whole history (segment filter applied)"},
     "trend_hover_suffix": {"ru": "анкет", "kz": "анкета", "en": "responses"},
     "sec_questions_title": {"ru": "Ответы по вопросам", "kz": "Сұрақтар бойынша жауаптар", "en": "Answers by question"},
-    "sec_questions_note": {"ru": "Тёмно-синий столбец — {cur}, голубой — {cmp}. По вертикали — доля ответивших, в процентах",
-                            "kz": "Қою көк баған — {cur}, ашық көк — {cmp}. Тік ось — жауап берушілер үлесі, пайызбен",
-                            "en": "Dark-blue bar — {cur}, light-blue — {cmp}. Vertical axis: share of respondents, %"},
+    "sec_questions_note": {"ru": "Шкалы 1–5 — полоса на 100%: красные сегменты — оценки 1–2, серый — 3, зелёные — 4–5. "
+                                 "Вопросы «Да/Нет» — доля ответивших «Да». Верхняя полоса — {cur}, нижняя — {cmp}",
+                            "kz": "1–5 шкалалары — 100% жолақ: қызыл сегменттер — 1–2 баға, сұр — 3, жасыл — 4–5. "
+                                 "«Иә/Жоқ» сұрақтары — «Иә» деп жауап бергендер үлесі. Жоғарғы жолақ — {cur}, төменгі — {cmp}",
+                            "en": "1–5 scales are 100% bars: red segments — scores 1–2, grey — 3, green — 4–5. "
+                                 "Yes/No questions show the share answering “Yes”. Top bar — {cur}, bottom — {cmp}"},
     "axis_score": {"ru": "Оценка (1–5)", "kz": "Баға (1–5)", "en": "Rating (1–5)"},
     "hover_share": {"ru": "Доля", "kz": "Үлес", "en": "Share"},
     "answered_caption": {
@@ -131,6 +134,16 @@ T = {
     "overview_problem": {"ru": "Главная проблема", "kz": "Негізгі мәселе", "en": "Main issue"},
     "overview_details": {"ru": "Подробнее — во вкладке «{tab}»", "kz": "Толығырақ — «{tab}» қойындысында", "en": "Details — in the “{tab}” tab"},
     "overview_no_data": {"ru": "Недостаточно данных", "kz": "Деректер жеткіліксіз", "en": "Not enough data"},
+    "about_data": {"ru": "О данных", "kz": "Деректер туралы", "en": "About the data"},
+    "about_data_note": {"ru": "Пропущенные месяцы показаны нулями", "kz": "Түскен айлар нөлмен көрсетілген", "en": "Months without responses are shown as zero"},
+    "no_change": {"ru": "без изменений", "kz": "өзгеріссіз", "en": "no change"},
+    "scale_mean_line": {"ru": "Средний балл: {cur} — {cur_p} · {cmp} — {cmp_p}",
+                        "kz": "Орташа балл: {cur} — {cur_p} · {cmp} — {cmp_p}",
+                        "en": "Average score: {cur} — {cur_p} · {cmp} — {cmp_p}"},
+    "scale_mean_line_single": {"ru": "Средний балл: {cur} — {cur_p}", "kz": "Орташа балл: {cur} — {cur_p}", "en": "Average score: {cur} — {cur_p}"},
+    "yn_answered_yes": {"ru": "ответили «Да»", "kz": "«Иә» деп жауап берді", "en": "answered “Yes”"},
+    "yn_compare": {"ru": "{cmp_p}: {v}", "kz": "{cmp_p}: {v}", "en": "{cmp_p}: {v}"},
+    "question_help": {"ru": "Полный текст вопроса", "kz": "Сұрақтың толық мәтіні", "en": "Full question text"},
     "or_sep": {"ru": " или ", "kz": " немесе ", "en": " or "},
     "overview_responses": {"ru": "{n} анкет", "kz": "{n} анкета", "en": "{n} responses"},
 }

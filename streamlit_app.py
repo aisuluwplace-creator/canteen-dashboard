@@ -1,14 +1,14 @@
 import pandas as pd
 import streamlit as st
 
-from charts import render_grouped_bar, render_trend_bar
+from charts import render_grouped_bar, render_scale_stacked, render_trend_bar
 from comments import clean_comments, sentiment_of
 from components import (counts_line, delta_html, delta_line, hero, inject_css, insights_block, kpi_row,
-                        legend_pills, overview_cards, section_head)
-from config import (COMPARE_COLOR, CURRENT_COLOR, MUTED, PLOTLY_CFG, SIGNIFICANCE_ALPHA, SURVEYS, SurveyConfig,
-                    cat_label)
+                        legend_pills, overview_cards, scale_note, section_head, with_no_change, yes_no_card)
+from config import (COMPARE_COLOR, CURRENT_COLOR, MUTED, PLOTLY_CFG, SCALE_LABELS, SIGNIFICANCE_ALPHA, SURVEYS,
+                    SurveyConfig, cat_label)
 from data import (data_updated_at, default_periods, describe_periods, last_wave, load_survey, period_label,
-                  period_options, prepare, waves)
+                  period_options, prepare, question_full_text, waves)
 from formatting import DASH, fmt_date, fmt_int, fmt_num, fmt_pct, fmt_pp, fmt_signed
 from i18n import LANGS, L, tr
 from insights import generate_insights
@@ -60,7 +60,7 @@ def result_kpis(cfg, an, lang, cmp_short):
         if comp is not None and comp.status == SIGNIFICANT and comp.delta:
             cls = "good" if (comp.delta > 0) == higher_is_better else "flag"
         return dict(label=label, value=value, suffix=suffix, cls=cls,
-                    delta_html=delta_html(delta_text, comp, lang, higher_is_better) if has_cur else "",
+                    delta_html=delta_html(with_no_change(delta_text, comp, lang), comp, lang, higher_is_better) if has_cur else "",
                     foot=foot if has_cur else tr("kpi_no_data", lang))
 
     items = [
@@ -150,40 +150,50 @@ def render_survey(cfg: SurveyConfig, lang: str):
     legend_pills([(CURRENT_COLOR, cur_desc), (COMPARE_COLOR, cmp_desc)])
 
     st.write("")
-    section_head(tr("sec_trend_title", lang), tr("sec_trend_note", lang))
-    monthly = df.groupby("_period").size().reindex(periods, fill_value=0)
-    bar_colors = [CURRENT_COLOR if p in cur_periods else (COMPARE_COLOR if p in cmp_periods else MUTED) for p in periods]
-    fig = render_trend_bar([fmt(p) for p in periods], monthly.values, bar_colors, tr("trend_hover_suffix", lang), lang)
-    with st.container(border=True):
-        st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
-
-    st.write("")
     section_head(tr("sec_questions_title", lang), tr("sec_questions_note", lang, cur=cur_short, cmp=cmp_short))
     q_cols = st.columns(2)
     for i, q in enumerate(cfg.questions):
         sc, sm = an.summ_cur[q], an.summ_cmp[q]
         comp = compare_question(sc, sm)
+        full_text = question_full_text(cols[q.col], lang)
         with q_cols[i % 2]:
             with st.container(border=True):
-                st.markdown(f"**{L(q.label, lang)}**")
+                st.markdown(f"**{L(q.label, lang)}**", help=f"{tr('question_help', lang)}: {full_text}")
                 if q.kind == "numeric15":
-                    if sc.n:
-                        delta_line(tr("q_mean_line", lang), fmt_num(sc.mean, 1, lang), fmt_signed(comp.delta, 1, lang),
-                                   comp, lang, higher_is_better=True)
-                    cats = ["1", "2", "3", "4", "5"]
-                    cur_vals = [sc.shares[k] for k in range(1, 6)]
-                    cmp_vals = [sm.shares[k] for k in range(1, 6)]
-                    fig = render_grouped_bar(cats, cur_vals, cmp_vals, cur_short, cmp_short, lang, tr("axis_score", lang))
+                    # средний балл по каждому периоду + дельта и метка значимости над полосами
+                    if sc.n and sm.n:
+                        means = tr("scale_mean_line", lang, cur=fmt_num(sc.mean, 1, lang), cur_p=cur_short,
+                                   cmp=fmt_num(sm.mean, 1, lang), cmp_p=cmp_short)
+                    elif sc.n:
+                        means = tr("scale_mean_line_single", lang, cur=fmt_num(sc.mean, 1, lang), cur_p=cur_short)
+                    else:
+                        means = None
+                    if means:
+                        delta_line(means.split(":")[0], means.split(":", 1)[1].strip(),
+                                   with_no_change(fmt_signed(comp.delta, 1, lang), comp, lang), comp, lang, True)
+                    fig = render_scale_stacked(sc.shares if sc.n else None, sm.shares if sm.n else None,
+                                               cur_short, cmp_short, lang)
+                    st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+                    label = SCALE_LABELS.get((cfg.key, q.col))
+                    if label:
+                        scale_note(L(label, lang))
+                elif q.categories == ["yes", "no"]:
+                    # компактная карточка вместо графика
+                    flag = "yes" in q.negative
+                    cmp_text = tr("yn_compare", lang, cmp_p=cmp_short, v=fmt_pct(sm.shares["yes"], 0, lang)) if sm.n else ""
+                    yes_no_card(fmt_pct(sc.shares["yes"], 0, lang) if sc.n else DASH, tr("yn_answered_yes", lang),
+                                fmt_pp(comp.delta, 0, lang), comp if sc.n else None, lang, cmp_text, flag=flag)
                 else:
                     keys = sc.headline_keys
                     if sc.n:
                         delta_line(tr("q_share_line", lang, c=cats_text(keys, lang)), fmt_pct(sc.share_of(keys), 0, lang),
-                                   fmt_pp(comp.delta, 0, lang), comp, lang, higher_is_better=not bool(q.negative))
+                                   with_no_change(fmt_pp(comp.delta, 0, lang), comp, lang), comp, lang,
+                                   higher_is_better=not bool(q.negative))
                     cat_disp = [cat_label(c, lang) for c in q.categories]
                     cur_vals = [sc.shares[c] for c in q.categories]
                     cmp_vals = [sm.shares[c] for c in q.categories]
                     fig = render_grouped_bar(cat_disp, cur_vals, cmp_vals, cur_short, cmp_short, lang)
-                st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+                    st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
                 st.caption(tr("answered_caption", lang, cur=fmt_int(sc.n, lang), cur_p=cur_short,
                               cmp=fmt_int(sm.n, lang), cmp_p=cmp_short))
 
@@ -237,6 +247,17 @@ def render_survey(cfg: SurveyConfig, lang: str):
                 for q in sample:
                     st.markdown(f'<div class="quote-card {key if key != "neu" else ""}">{q}</div>', unsafe_allow_html=True)
 
+    # --- о данных: динамика числа ответов по месяцам (без дыр в оси) ---
+    st.write("")
+    with st.expander(tr("about_data", lang)):
+        st.markdown(f"**{tr('sec_trend_title', lang)}**")
+        st.caption(f"{tr('sec_trend_note', lang)}. {tr('about_data_note', lang)}")
+        full_range = list(pd.period_range(min(periods), max(periods), freq="M"))
+        monthly = df.groupby("_period").size().reindex(full_range, fill_value=0)
+        bar_colors = [CURRENT_COLOR if p in cur_periods else (COMPARE_COLOR if p in cmp_periods else MUTED) for p in full_range]
+        fig = render_trend_bar([fmt(p) for p in full_range], monthly.values, bar_colors, tr("trend_hover_suffix", lang), lang)
+        st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+
 
 def render_overview(lang: str):
     """Сводка: по карточке на раздел — средний балл, динамика к предыдущей волне, главная проблема."""
@@ -263,7 +284,7 @@ def render_overview(lang: str):
               f"{tr('overview_responses', lang, n=fmt_int(len(df_cur), lang))}"
         if an.sat_cur.n:
             value = fmt_num(an.sat_cur.mean, 1, lang)
-            dh = delta_html(fmt_signed(an.mean_c.delta, 1, lang), an.mean_c, lang, True)
+            dh = delta_html(with_no_change(fmt_signed(an.mean_c.delta, 1, lang), an.mean_c, lang), an.mean_c, lang, True)
             if cmp_p is not None:
                 dh = dh.replace('</div>', f'<span class="sig">· {tr("overview_vs", lang, period=period_label(cmp_p, lang))}</span></div>')
         else:

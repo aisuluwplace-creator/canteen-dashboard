@@ -33,6 +33,10 @@ try:
         page = browser.new_page(viewport={"width": 1400, "height": int(sys.argv[3]) if len(sys.argv) > 3 else 4200})
         page.goto(f"http://localhost:{PORT}", wait_until="networkidle")
         page.wait_for_timeout(4000)
+        lang = sys.argv[2] if len(sys.argv) > 2 else "ru"
+        if lang != "ru":
+            page.locator('[data-testid="stRadio"] label').nth({"kz": 1, "en": 2}[lang]).click()
+            page.wait_for_timeout(3000)
         tabs = page.locator('[data-baseweb="tab-list"]').first.locator('[data-baseweb="tab"]')
         n = tabs.count()
         print("tabs:", n)

@@ -125,7 +125,7 @@ def render_comments(cfg, lang, df_cur, df_cmp, cols, cur_short, cmp_short):
             fig = render_grouped_bar([sent_names[k] for k in SENT_ORDER],
                                      [cur_sent[k] for k in SENT_ORDER], [cmp_sent[k] for k in SENT_ORDER],
                                      cur_short, cmp_short, lang)
-            st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+            st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG, key=f"{cfg.key}_{lang}_sent")
     with col_s2:
         if present:
             with st.container(border=True):
@@ -134,7 +134,8 @@ def render_comments(cfg, lang, df_cur, df_cmp, cols, cur_short, cmp_short):
                 labels = [topic_label(cfg.key, k, lang) for k in present]
                 counts = {sk: [sum(1 for c in cur if c["topic"] == tk and c["sentiment"] == sk) for tk in present]
                           for sk in SENT_ORDER}
-                st.plotly_chart(render_topics_bar(labels, counts, sent_names, lang), width="stretch", config=PLOTLY_CFG)
+                st.plotly_chart(render_topics_bar(labels, counts, sent_names, lang), width="stretch", config=PLOTLY_CFG,
+                                key=f"{cfg.key}_{lang}_topics")
 
     # --- лента комментариев ---
     st.markdown(f"**{tr('comments_current_title', lang, period=cur_short)}**")
@@ -262,7 +263,7 @@ def render_survey(cfg: SurveyConfig, lang: str):
                                    with_no_change(fmt_signed(comp.delta, 1, lang), comp, lang), comp, lang, True)
                     fig = render_scale_stacked(sc.shares if sc.n else None, sm.shares if sm.n else None,
                                                cur_short, cmp_short, lang)
-                    st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+                    st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG, key=f"{cfg.key}_{lang}_q{q.col}")
                     label = SCALE_LABELS.get((cfg.key, q.col))
                     if label:
                         scale_note(L(label, lang))
@@ -282,7 +283,7 @@ def render_survey(cfg: SurveyConfig, lang: str):
                     cur_vals = [sc.shares[c] for c in q.categories]
                     cmp_vals = [sm.shares[c] for c in q.categories]
                     fig = render_grouped_bar(cat_disp, cur_vals, cmp_vals, cur_short, cmp_short, lang)
-                    st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+                    st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG, key=f"{cfg.key}_{lang}_q{q.col}")
                 st.caption(tr("answered_caption", lang, cur=fmt_int(sc.n, lang), cur_p=cur_short,
                               cmp=fmt_int(sm.n, lang), cmp_p=cmp_short))
 
@@ -297,7 +298,7 @@ def render_survey(cfg: SurveyConfig, lang: str):
         monthly = df.groupby("_period").size().reindex(full_range, fill_value=0)
         bar_colors = [CURRENT_COLOR if p in cur_periods else (COMPARE_COLOR if p in cmp_periods else MUTED) for p in full_range]
         fig = render_trend_bar([fmt(p) for p in full_range], monthly.values, bar_colors, tr("trend_hover_suffix", lang), lang)
-        st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG)
+        st.plotly_chart(fig, width="stretch", config=PLOTLY_CFG, key=f"{cfg.key}_{lang}_trend")
 
 
 def render_overview(lang: str):

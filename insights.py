@@ -57,6 +57,9 @@ TXT = {
     "no_change": {"ru": "Существенных изменений по сравнению с периодом «{p}» нет",
                   "kz": "«{p}» кезеңімен салыстырғанда елеулі өзгерістер жоқ",
                   "en": "No significant changes compared with “{p}”"},
+    "no_current": {"ru": "Текущий период не выбран или в нём нет ответов — показатели не рассчитываются",
+                   "kz": "Ағымдағы кезең таңдалмаған немесе онда жауап жоқ — көрсеткіштер есептелмейді",
+                   "en": "No current period selected or it has no answers — metrics are not calculated"},
     "no_compare": {"ru": "Период сравнения не выбран — динамика не рассчитывается",
                    "kz": "Салыстыру кезеңі таңдалмаған — динамика есептелмейді",
                    "en": "No comparison period selected — no change is calculated"},
@@ -168,7 +171,9 @@ def generate_insights(cfg, lang, sat_cur, sat_cmp, sat_cmps, summ_cur, summ_cmp,
                                    _t("polar", lang, q=L(q.label, lang), d5=fmt_pp(d5, 0, lang), d1=fmt_pp(d1, 0, lang))))
 
     # 5. Итог по динамике, если значимых изменений нет
-    if not has_compare:
+    if sat_cur.n == 0 and all(s.n == 0 for s in summ_cur.values()):
+        out.append(Insight(SEV_NEUTRAL, 0, _t("no_current", lang)))
+    elif not has_compare:
         out.append(Insight(SEV_NEUTRAL, 0, _t("no_compare", lang)))
     elif low_n:
         out.append(Insight(SEV_NEUTRAL, 0, _t("low_n", lang)))
